@@ -7,7 +7,9 @@
     "start": "node src/server.js",
     "db:init": "node scripts/init-db.js",
     "db:reset": "node scripts/init-db.js --reset",
-    "test:race": "node scripts/test-race.js"
+    "test:race": "node scripts/test-race.js",
+    "start:cluster": "node scripts/cluster.js",
+    "start:lb": "node src/lb.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

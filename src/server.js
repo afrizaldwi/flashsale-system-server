@@ -1,10 +1,13 @@
 require('dotenv').config();
 const path = require('path');
 const express = require('express');
-const { primary: pool, replica, hasReplica, readQuery } = require('./db');
+const { primary: pool, hasReplica, replicaQuery, readQuery, getStatus } = require('./db');
+const INSTANCE = process.env.INSTANCE_ID || `port-${process.env.PORT || 3000}`;
 
 const app = express();
 app.use(express.json());
+// Tandai instance backend mana yang melayani request (terlihat saat load balancing).
+app.use((req, res, next) => { res.set('X-Instance', INSTANCE); next(); });
 app.use(express.static(path.join(__dirname, '..', 'frontend')));
 
 // Kode error PostgreSQL / jaringan yang berarti "database tidak tersedia"
@@ -123,15 +126,20 @@ app.get('/orders/:id', async (req, res) => {
 
 // FR-6: health check mencerminkan status DB (primary menentukan status; replica dilaporkan terpisah)
 app.get('/health', async (req, res) => {
-  const out = { status: 'ok', db: 'up', replica: hasReplica ? 'down' : 'not_configured', time: new Date().toISOString() };
+  const fo = getStatus();
+  const out = {
+    status: 'ok', instance: INSTANCE, db: 'up',
+    replica: hasReplica() ? 'down' : (fo.failed_over ? 'promoted' : 'not_configured'),
+    failed_over: fo.failed_over, failed_over_at: fo.failed_over_at, time: new Date().toISOString(),
+  };
   try {
     await pool.query('SELECT 1');
   } catch (err) {
     out.status = 'degraded'; out.db = 'down';
   }
-  if (hasReplica) {
+  if (hasReplica()) {
     try {
-      const r = await replica.query('SELECT pg_is_in_recovery() AS ro, CASE WHEN pg_last_wal_receive_lsn() = pg_last_wal_replay_lsn() THEN 0 ELSE COALESCE(EXTRACT(EPOCH FROM now() - pg_last_xact_replay_timestamp()),0) END::float AS lag_s');
+      const r = await replicaQuery('SELECT pg_is_in_recovery() AS ro, CASE WHEN pg_last_wal_receive_lsn() = pg_last_wal_replay_lsn() THEN 0 ELSE COALESCE(EXTRACT(EPOCH FROM now() - pg_last_xact_replay_timestamp()),0) END::float AS lag_s');
       out.replica = 'up';
       out.replica_read_only = r.rows[0].ro;
       out.replica_lag_seconds = Number(r.rows[0].lag_s.toFixed(2));
@@ -176,4 +184,4 @@ process.on('unhandledRejection', (e) => console.error('[unhandledRejection]', e)
 process.on('uncaughtException', (e) => console.error('[uncaughtException]', e));
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
-app.listen(PORT, () => console.log(`Flash Sale API berjalan di http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`Flash Sale API [${INSTANCE}] berjalan di http://localhost:${PORT}`));
