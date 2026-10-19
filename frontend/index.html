@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flash Sale</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <header>
+    <h1>⚡ <span>Flash</span> Sale</h1>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span id="health" class="pill">cek status…</span>
+      <button class="ghost" id="refresh">Muat ulang</button>
+    </div>
+  </header>
+  <main>
+    <div class="bar">
+      <label>Pembeli:
+        <select id="user"></select>
+      </label>
+      <span>Idempotency-Key terakhir: <code id="lastKey">-</code></span>
+      <button class="ghost" id="retry" disabled>Ulangi request terakhir (key sama)</button>
+    </div>
+
+    <section>
+      <h2>Produk</h2>
+      <div id="products" class="grid"></div>
+    </section>
+
+    <section>
+      <h2>Log request</h2>
+      <div id="log"></div>
+    </section>
+
+    <section>
+      <h2>Konsistensi data (/stats) <span id="consistent" class="pill"></span></h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Produk</th>
+            <th>Stok awal</th>
+            <th>Stok</th>
+            <th>Terjual (Σ qty)</th>
+            <th>Selisih</th>
+          </tr>
+        </thead>
+        <tbody id="stats"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+
+</html>

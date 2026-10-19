@@ -1,0 +1,232 @@
+   :root {
+       --bg: #0f1115;
+       --card: #1a1d24;
+       --line: #2a2f3a;
+       --text: #e8eaf0;
+       --mute: #9aa3b2;
+       --accent: #ff5a36;
+       --ok: #2ecc71;
+       --warn: #f5a623;
+       --bad: #e74c3c;
+   }
+
+   * {
+       box-sizing: border-box;
+   }
+
+   body {
+       margin: 0;
+       font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+       background: var(--bg);
+       color: var(--text);
+   }
+
+   header {
+       display: flex;
+       justify-content: space-between;
+       align-items: center;
+       gap: 12px;
+       flex-wrap: wrap;
+       padding: 16px 24px;
+       border-bottom: 1px solid var(--line);
+   }
+
+   h1 {
+       margin: 0;
+       font-size: 20px;
+   }
+
+   h1 span {
+       color: var(--accent);
+   }
+
+   .pill {
+       font-size: 12px;
+       padding: 4px 10px;
+       border-radius: 99px;
+       border: 1px solid var(--line);
+       color: var(--mute);
+   }
+
+   .pill.ok {
+       color: var(--ok);
+       border-color: var(--ok);
+   }
+
+   .pill.bad {
+       color: var(--bad);
+       border-color: var(--bad);
+   }
+
+   main {
+       max-width: 1000px;
+       margin: 0 auto;
+       padding: 24px 16px;
+       display: grid;
+       gap: 24px;
+   }
+
+   .bar {
+       display: flex;
+       gap: 12px;
+       align-items: center;
+       flex-wrap: wrap;
+       color: var(--mute);
+       font-size: 14px;
+   }
+
+   select,
+   input,
+   button {
+       font: inherit;
+       color: var(--text);
+       background: var(--card);
+       border: 1px solid var(--line);
+       border-radius: 8px;
+       padding: 8px 10px;
+   }
+
+   button {
+       cursor: pointer;
+       background: var(--accent);
+       border-color: var(--accent);
+       color: #fff;
+       font-weight: 600;
+   }
+
+   button:disabled {
+       opacity: .45;
+       cursor: not-allowed;
+   }
+
+   button.ghost {
+       background: transparent;
+       color: var(--text);
+       border-color: var(--line);
+   }
+
+   .grid {
+       display: grid;
+       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+       gap: 16px;
+   }
+
+   .card {
+       background: var(--card);
+       border: 1px solid var(--line);
+       border-radius: 12px;
+       padding: 16px;
+       display: grid;
+       gap: 10px;
+   }
+
+   .card h3 {
+       margin: 0;
+       font-size: 16px;
+   }
+
+   .price {
+       font-size: 20px;
+       font-weight: 700;
+   }
+
+   .meter {
+       height: 8px;
+       background: var(--line);
+       border-radius: 99px;
+       overflow: hidden;
+   }
+
+   .meter>i {
+       display: block;
+       height: 100%;
+       background: var(--ok);
+       transition: width .3s;
+   }
+
+   .meter.low>i {
+       background: var(--warn);
+   }
+
+   .meter.out>i {
+       background: var(--bad);
+   }
+
+   .row {
+       display: flex;
+       gap: 8px;
+       align-items: center;
+       justify-content: space-between;
+       font-size: 13px;
+       color: var(--mute);
+   }
+
+   .buy {
+       display: flex;
+       gap: 8px;
+   }
+
+   .buy input {
+       width: 70px;
+   }
+
+   .buy button {
+       flex: 1;
+   }
+
+   section h2 {
+       font-size: 15px;
+       margin: 0 0 10px;
+       color: var(--mute);
+       text-transform: uppercase;
+       letter-spacing: .06em;
+   }
+
+   #log {
+       background: #0a0c10;
+       border: 1px solid var(--line);
+       border-radius: 10px;
+       padding: 12px;
+       font: 12px/1.6 ui-monospace, Menlo, Consolas, monospace;
+       max-height: 240px;
+       overflow: auto;
+   }
+
+   #log div.ok {
+       color: var(--ok);
+   }
+
+   #log div.dup {
+       color: var(--warn);
+   }
+
+   #log div.bad {
+       color: var(--bad);
+   }
+
+   table {
+       width: 100%;
+       border-collapse: collapse;
+       font-size: 13px;
+   }
+
+   th,
+   td {
+       text-align: left;
+       padding: 6px 8px;
+       border-bottom: 1px solid var(--line);
+   }
+
+   th {
+       color: var(--mute);
+       font-weight: 500;
+   }
+
+   .zero {
+       color: var(--ok);
+   }
+
+   .nonzero {
+       color: var(--bad);
+       font-weight: 700;
+   }
