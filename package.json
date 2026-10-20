@@ -1,15 +1,17 @@
 {
-  "name": "flashsale",
-  "version": "1.0.0",
-  "description": "Sistem Flash Sale E-Commerce - Praktikum Cloud Computing Kelompok 1",
-  "main": "src/server.js",
+  "name": "flashsale-cloud-kelompok-1",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Flash Sale E-Commerce - Cloud Computing H7D.7 Kelompok 1 - Pertemuan 1",
+  "engines": { "node": ">=18.17.0" },
   "scripts": {
     "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
     "db:init": "node scripts/init-db.js",
     "db:reset": "node scripts/init-db.js --reset",
+    "db:verify": "node scripts/verify-db.js",
     "test:race": "node scripts/test-race.js",
-    "start:cluster": "node scripts/cluster.js",
-    "start:lb": "node src/lb.js"
+    "test": "node --test tests/core.test.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

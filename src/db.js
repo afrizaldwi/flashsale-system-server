@@ -1,118 +1,89 @@
-require('dotenv').config();
-const { Pool } = require('pg');
+"use strict";
+require("dotenv").config();
+const { Pool } = require("pg");
 
-const base = {
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres',
-  database: process.env.DB_NAME || 'flashsale',
-  max: parseInt(process.env.DB_POOL_MAX || '20', 10),   // pool <= 20 per server DB
+const common = {
+  user: process.env.DB_USER || "postgres",
+  password: process.env.DB_PASSWORD || "",
+  database: process.env.DB_NAME || "flashsale",
+  max: Number(process.env.DB_POOL_MAX || 20),
   connectionTimeoutMillis: 3000,
   idleTimeoutMillis: 10000,
 };
-const mkPool = (host, port, name) => {
-  const p = new Pool({ ...base, host, port });
-  // Error pada koneksi idle (mis. DB mati) TIDAK boleh menjatuhkan proses backend (NFR-4).
-  p.on('error', (err) => console.error(`[pg ${name}] idle client error:`, err.message));
-  return p;
-};
-
-// Status koneksi database yang sedang dipakai backend ini (bisa berubah saat failover).
-const state = {
-  primary: mkPool(process.env.DB_HOST || 'localhost', parseInt(process.env.DB_PORT || '5432', 10), 'primary'),
-  replica: process.env.DB_REPLICA_HOST
-    ? mkPool(process.env.DB_REPLICA_HOST, parseInt(process.env.DB_REPLICA_PORT || '5433', 10), 'replica')
-    : null,
-  failedOver: false,
-  failedOverAt: null,
-  primaryFailures: 0,
-};
-
-// PRIMARY (master): semua penulisan dan data yang harus akurat. Facade agar server.js selalu
-// memakai pool yang AKTIF, termasuk setelah failover.
-const primary = {
-  query: (...a) => state.primary.query(...a),
-  connect: (...a) => state.primary.connect(...a),
-};
-
-// REPLICA (slave): hanya baca. Jika replica mati / sudah dipromosikan, bacaan jatuh ke primary.
-const hasReplica = () => !!state.replica;
-const replicaQuery = (...a) => state.replica.query(...a);
-
-async function readQuery(sql, params) {
-  if (state.replica) {
-    try {
-      return { ...(await state.replica.query(sql, params)), source: 'replica' };
-    } catch (err) {
-      console.error('[read] replica gagal, fallback ke primary:', err.message);
-    }
-  }
-  return { ...(await state.primary.query(sql, params)), source: 'primary' };
+function makePool(host, port, label) {
+  const pool = new Pool({ ...common, host, port: Number(port) });
+  // Koneksi idle yang terputus tidak boleh menyebabkan proses Node berhenti.
+  pool.on("error", (error) =>
+    console.error(`[DB:${label}] koneksi idle gagal:`, error.message),
+  );
+  return pool;
 }
 
-// ---------- FAILOVER OTOMATIS ----------
-// Watchdog di tiap instance backend: jika primary gagal FAILOVER_THRESHOLD kali berturut-turut,
-// replica dipromosikan (pg_promote) dan semua penulisan dialihkan ke replica tersebut.
-// Beberapa instance backend aman berjalan bersamaan: yang pertama mempromosikan, yang lain hanya
-// mengalihkan koneksi karena replica sudah bukan standby.
-const AUTO = process.env.AUTO_FAILOVER !== 'false';
-const THRESHOLD = parseInt(process.env.FAILOVER_THRESHOLD || '3', 10);
-const INTERVAL = parseInt(process.env.FAILOVER_CHECK_MS || '1000', 10);
+const primary = makePool(
+  process.env.DB_HOST || "127.0.0.1",
+  process.env.DB_PORT || 5432,
+  "primary",
+);
+const replica = process.env.DB_REPLICA_HOST
+  ? makePool(
+      process.env.DB_REPLICA_HOST,
+      process.env.DB_REPLICA_PORT || 5433,
+      "replica",
+    )
+  : null;
 
-async function failover() {
-  const rep = state.replica;
-  let inRecovery;
-  try {
-    inRecovery = (await rep.query('SELECT pg_is_in_recovery() AS r')).rows[0].r;
-  } catch (err) {
-    console.error('[failover] replica juga tidak bisa dihubungi, failover dibatalkan:', err.message);
-    return false;
-  }
-  if (inRecovery) {
+// TIDAK ada watchdog atau auto-promotion. Failover mengikuti DRP bagian 7.1.
+// Sesudah promote, operator mengedit .env, menonaktifkan konfigurasi replica lama,
+// lalu menghentikan & menjalankan ulang backend dengan DB_PORT mengarah ke primary baru.
+async function readProducts(sql, params = []) {
+  if (replica) {
     try {
-      await rep.query('SELECT pg_promote(true, 30)');
-      console.log('[failover] replica DIPROMOSIKAN menjadi primary baru');
-    } catch (err) {
-      // instance lain mungkin sudah mempromosikan lebih dulu
-      const again = (await rep.query('SELECT pg_is_in_recovery() AS r').catch(() => ({ rows: [{ r: true }] }))).rows[0].r;
-      if (again) { console.error('[failover] gagal promote:', err.message); return false; }
-    }
-  } else {
-    console.log('[failover] replica sudah menjadi primary (dipromosikan instance lain), mengalihkan koneksi');
-  }
-  const old = state.primary;
-  state.primary = rep;
-  state.replica = null;
-  state.failedOver = true;
-  state.failedOverAt = new Date().toISOString();
-  old.end().catch(() => {});
-  return true;
-}
-
-if (AUTO && state.replica) {
-  let busy = false;
-  setInterval(async () => {
-    if (busy || state.failedOver) return;
-    busy = true;
-    try {
-      try {
-        await Promise.race([
-          state.primary.query('SELECT 1'),
-          new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 2000)),
-        ]);
-        state.primaryFailures = 0;
-      } catch (err) {
-        state.primaryFailures++;
-        console.error(`[watchdog] primary gagal (${state.primaryFailures}/${THRESHOLD}): ${err.message}`);
-        if (state.primaryFailures >= THRESHOLD) await failover();
+      // Guard: jangan melayani data dari server yang bukan standby sebagai replica.
+      const check = await replica.query(
+        "SELECT pg_is_in_recovery() AS in_recovery",
+      );
+      if (check.rows[0].in_recovery) {
+        const result = await replica.query(sql, params);
+        return { ...result, source: "replica" };
       }
-    } finally { busy = false; }
-  }, INTERVAL);
+      console.warn(
+        "[read] host replica tidak dalam mode recovery; baca dari primary",
+      );
+    } catch (error) {
+      console.warn(
+        "[read] replica tidak tersedia, fallback ke primary:",
+        error.message,
+      );
+    }
+  }
+  const result = await primary.query(sql, params);
+  return { ...result, source: "primary" };
 }
 
-const getStatus = () => ({
-  failed_over: state.failedOver,
-  failed_over_at: state.failedOverAt,
-  auto_failover: AUTO && (state.failedOver || !!state.replica),
-});
+async function replicaHealth() {
+  if (!replica) return { replica: "not_configured" };
+  try {
+    const r = await replica.query(`
+      SELECT pg_is_in_recovery() AS in_recovery,
+        CASE
+          WHEN pg_last_wal_receive_lsn() = pg_last_wal_replay_lsn() THEN 0
+          WHEN pg_last_xact_replay_timestamp() IS NULL THEN NULL
+          ELSE GREATEST(0, EXTRACT(EPOCH FROM now() - pg_last_xact_replay_timestamp()))
+        END::float AS lag_s
+    `);
+    if (!r.rows[0].in_recovery)
+      return { replica: "not_standby", replica_read_only: false };
+    return {
+      replica: "up",
+      replica_read_only: true,
+      replica_lag_seconds:
+        r.rows[0].lag_s === null
+          ? null
+          : Number(Number(r.rows[0].lag_s).toFixed(2)),
+    };
+  } catch (error) {
+    return { replica: "down", replica_error: error.code || "CONNECTION_ERROR" };
+  }
+}
 
-module.exports = { primary, hasReplica, replicaQuery, readQuery, getStatus };
+module.exports = { primary, replica, readProducts, replicaHealth };

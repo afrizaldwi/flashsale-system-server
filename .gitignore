@@ -1,5 +1,9 @@
 node_modules/
 .env
-backups/*.dump
-backups/*.tmp
+.env.*
+!.env.example
+backups/*
+!backups/.gitkeep
 *.log
+*.pid
+.DS_Store

@@ -1,155 +1,62 @@
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Flash Sale</title>
-<style>
-  :root { --bg:#0f1115; --card:#1a1d24; --line:#2a2f3a; --text:#e8eaf0; --mute:#9aa3b2; --accent:#ff5a36; --ok:#2ecc71; --warn:#f5a623; --bad:#e74c3c; }
-  * { box-sizing: border-box; }
-  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--text); }
-  header { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; padding:16px 24px; border-bottom:1px solid var(--line); }
-  h1 { margin:0; font-size:20px; } h1 span { color:var(--accent); }
-  .pill { font-size:12px; padding:4px 10px; border-radius:99px; border:1px solid var(--line); color:var(--mute); }
-  .pill.ok { color:var(--ok); border-color:var(--ok); } .pill.bad { color:var(--bad); border-color:var(--bad); }
-  main { max-width:1000px; margin:0 auto; padding:24px 16px; display:grid; gap:24px; }
-  .bar { display:flex; gap:12px; align-items:center; flex-wrap:wrap; color:var(--mute); font-size:14px; }
-  select, input, button { font:inherit; color:var(--text); background:var(--card); border:1px solid var(--line); border-radius:8px; padding:8px 10px; }
-  button { cursor:pointer; background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
-  button:disabled { opacity:.45; cursor:not-allowed; }
-  button.ghost { background:transparent; color:var(--text); border-color:var(--line); }
-  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; display:grid; gap:10px; }
-  .card h3 { margin:0; font-size:16px; } .price { font-size:20px; font-weight:700; }
-  .meter { height:8px; background:var(--line); border-radius:99px; overflow:hidden; } .meter > i { display:block; height:100%; background:var(--ok); transition:width .3s; }
-  .meter.low > i { background:var(--warn); } .meter.out > i { background:var(--bad); }
-  .row { display:flex; gap:8px; align-items:center; justify-content:space-between; font-size:13px; color:var(--mute); }
-  .buy { display:flex; gap:8px; } .buy input { width:70px; }
-  .buy button { flex:1; }
-  section h2 { font-size:15px; margin:0 0 10px; color:var(--mute); text-transform:uppercase; letter-spacing:.06em; }
-  #log { background:#0a0c10; border:1px solid var(--line); border-radius:10px; padding:12px; font:12px/1.6 ui-monospace,Menlo,Consolas,monospace; max-height:240px; overflow:auto; }
-  #log div.ok { color:var(--ok); } #log div.dup { color:var(--warn); } #log div.bad { color:var(--bad); }
-  table { width:100%; border-collapse:collapse; font-size:13px; } th,td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); }
-  th { color:var(--mute); font-weight:500; }
-  .zero { color:var(--ok); } .nonzero { color:var(--bad); font-weight:700; }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flash Sale E-Commerce · Pertemuan 1</title>
+  <link rel="stylesheet" href="/style.css" />
+  <script defer src="/script.js"></script>
 </head>
+
 <body>
-<header>
-  <h1>⚡ <span>Flash</span> Sale</h1>
-  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-    <span id="health" class="pill">cek status…</span>
-    <button class="ghost" id="refresh">Muat ulang</button>
-  </div>
-</header>
-<main>
-  <div class="bar">
-    <label>Pembeli:
-      <select id="user"></select>
-    </label>
-    <span>Idempotency-Key terakhir: <code id="lastKey">-</code></span>
-    <button class="ghost" id="retry" disabled>Ulangi request terakhir (key sama)</button>
-  </div>
-
-  <section>
-    <h2>Produk</h2>
-    <div id="products" class="grid"></div>
-  </section>
-
-  <section>
-    <h2>Log request</h2>
-    <div id="log"></div>
-  </section>
-
-  <section>
-    <h2>Konsistensi data (/stats) <span id="consistent" class="pill"></span></h2>
-    <table>
-      <thead><tr><th>Produk</th><th>Stok awal</th><th>Stok</th><th>Terjual (Σ qty)</th><th>Selisih</th></tr></thead>
-      <tbody id="stats"></tbody>
-    </table>
-  </section>
-</main>
-
-<script>
-const $ = (id) => document.getElementById(id);
-const rupiah = (n) => new Intl.NumberFormat('id-ID', { style:'currency', currency:'IDR', maximumFractionDigits:0 }).format(n);
-let last = null; // request checkout terakhir (untuk simulasi retry klien)
-
-function log(msg, cls='') {
-  const d = document.createElement('div'); d.className = cls;
-  d.textContent = `[${new Date().toLocaleTimeString('id-ID')}] ${msg}`;
-  $('log').prepend(d);
-}
-
-async function checkHealth() {
-  try {
-    const r = await fetch('/health');
-    const h = await r.json();
-    const rep = h.replica === 'not_configured' ? '' : ` · replica ${h.replica === 'up' ? '✓' : '✗'}`;
-    $('health').textContent = (r.ok ? 'primary ✓' : 'primary DOWN (503)') + rep;
-    $('health').className = 'pill ' + (r.ok ? 'ok' : 'bad');
-  } catch { $('health').textContent = 'server tidak terjangkau'; $('health').className = 'pill bad'; }
-}
-
-async function loadProducts() {
-  try {
-    const r = await fetch('/products');
-    if (!r.ok) throw new Error(r.status);
-    const list = await r.json();
-    $('products').innerHTML = '';
-    for (const p of list) {
-      const pct = p.initial_stock ? (p.stock / p.initial_stock) * 100 : 0;
-      const cls = p.stock === 0 ? 'out' : pct < 20 ? 'low' : '';
-      const el = document.createElement('div'); el.className = 'card';
-      el.innerHTML = `
-        <h3></h3><div class="price">${rupiah(p.price)}</div>
-        <div class="meter ${cls}"><i style="width:${pct}%"></i></div>
-        <div class="row"><span>Sisa stok</span><b>${p.stock} / ${p.initial_stock}</b></div>
-        <div class="buy"><input type="number" min="1" value="1" aria-label="Jumlah"><button ${p.stock===0?'disabled':''}>${p.stock===0?'HABIS':'Beli'}</button></div>`;
-      el.querySelector('h3').textContent = p.name;
-      el.querySelector('button').onclick = () => checkout(p.id, parseInt(el.querySelector('input').value, 10), p.name);
-      $('products').append(el);
-    }
-  } catch (e) { log('Gagal memuat produk (DB mungkin mati)', 'bad'); }
-}
-
-async function loadStats() {
-  try {
-    const r = await fetch('/stats'); if (!r.ok) throw new Error(r.status);
-    const s = await r.json();
-    $('consistent').textContent = s.consistent ? 'consistent: true' : 'consistent: FALSE';
-    $('consistent').className = 'pill ' + (s.consistent ? 'ok' : 'bad');
-    $('stats').innerHTML = s.products.map((p) => `<tr><td>${p.name.replace(/</g,'&lt;')}</td><td>${p.initial_stock}</td><td>${p.stock}</td><td>${p.terjual}</td><td class="${p.selisih===0?'zero':'nonzero'}">${p.selisih}</td></tr>`).join('');
-  } catch { $('consistent').textContent = 'tidak tersedia'; $('consistent').className = 'pill bad'; }
-}
-
-async function send(req) {
-  try {
-    const r = await fetch('/checkout', { method:'POST',
-      headers: { 'Content-Type':'application/json', 'Idempotency-Key': req.key },
-      body: JSON.stringify({ user_id: req.user_id, product_id: req.product_id, qty: req.qty }) });
-    const b = await r.json();
-    if (r.status === 201) log(`201 CREATED  order #${b.order.id} — ${req.name} x${req.qty}`, 'ok');
-    else if (r.status === 200) log(`200 DUPLICATE order #${b.order.id} (key sama, tidak dibuat ulang)`, 'dup');
-    else log(`${r.status} ${b.error}: ${b.message}`, 'bad');
-  } catch { log('Jaringan gagal / server tidak terjangkau', 'bad'); }
-  refreshAll();
-}
-
-function checkout(product_id, qty, name) {
-  if (!Number.isInteger(qty) || qty < 1) return log('Jumlah tidak valid', 'bad');
-  last = { key: crypto.randomUUID(), user_id: parseInt($('user').value, 10), product_id, qty, name };
-  $('lastKey').textContent = last.key.slice(0, 8) + '…'; $('retry').disabled = false;
-  send(last);
-}
-
-$('retry').onclick = () => last && send(last);
-$('refresh').onclick = () => refreshAll();
-function refreshAll() { checkHealth(); loadProducts(); loadStats(); }
-
-for (let i = 1; i <= 100; i++) $('user').add(new Option('User ' + i, i));
-refreshAll();
-setInterval(checkHealth, 5000);
-</script>
+  <header>
+    <div>
+      <h1><span>FLASH</span> SALE</h1>
+      <p>Praktikum Cloud Computing · Kelompok 1 · Pertemuan 1</p>
+    </div>
+    <div class="header-actions"><span id="health" class="pill">Memeriksa status...</span><button id="refresh"
+        class="ghost">Muat ulang</button></div>
+  </header>
+  <main>
+    <section class="hero">
+      <h2>Simulasi Transaksi Flash Sale</h2>
+      <p>Checkout dilakukan secara atomik pada database primary. Daftar produk dibaca dari replica jika tersedia.
+        Gunakan tombol retry untuk membuktikan tidak ada pesanan ganda.</p>
+    </section>
+    <div class="bar"><label for="user">Pembeli</label><select id="user"></select><label>Idempotency-Key terakhir: <code
+          id="lastKey">—</code></label><button id="retry" class="ghost" disabled>Ulangi request (key sama)</button>
+    </div>
+    <section>
+      <h2>Produk Flash Sale</h2>
+      <p id="readSource" class="muted">Sumber data produk: memuat...</p>
+      <div id="products" class="grid"></div>
+    </section>
+    <section>
+      <h2>Log Request</h2>
+      <div id="log" aria-live="polite"></div>
+    </section>
+    <section>
+      <h2>Validasi Integritas Database <span id="consistent" class="pill">Memuat...</span></h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Produk</th>
+              <th>Stok awal</th>
+              <th>Stok saat ini</th>
+              <th>Terjual</th>
+              <th>Selisih</th>
+            </tr>
+          </thead>
+          <tbody id="stats"></tbody>
+        </table>
+      </div>
+    </section>
+    <section class="note"><strong>Mode pemulihan: manual.</strong> Jika primary mati, checkout dan statistik sementara
+      tidak tersedia. Akses daftar produk masih bisa berjalan lewat replica. Promosikan replica hanya setelah primary
+      lama benar-benar diisolasi.</section>
+  </main>
 </body>
+
 </html>

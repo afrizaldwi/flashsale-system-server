@@ -1,20 +1,23 @@
-# Prompt AI untuk Laporan Mingguan (Pertemuan 1)
+# Rekam Penggunaan AI — Pertemuan 1
 
-Alat: Claude. Masukan: Dokumen Spesifikasi Arsitektur dan Dokumen DRP Awal Kelompok 1 (format .docx).
+**Catatan asal:** Disusun dari riwayat prompt yang tercantum pada repository awal; bukan log lengkap setiap interaksi AI. Lengkapi dengan prompt asli dan nama alat AI yang benar-benar dipakai oleh anggota tim.
 
-Prompt:
+## Pembuatan aplikasi awal (riwayat repository)
+Alat (menurut catatan repository): Claude.
+
 > Sekarang pertemuan pertama dan saya kelompok 1 (Flash Sale E-Commerce). Buatkan aplikasi sederhananya berdasarkan dokumen yang saya kirim.
 
-Catatan verifikasi tim: kode diuji dengan PostgreSQL 16 lokal (300 dan 1000 request serentak, key sama 20x, DB dimatikan lalu dihidupkan).
-Satu bug ditemukan saat pengujian (pool starvation di jalur stok habis) dan sudah diperbaiki; lihat bagian Catatan desain di README.
-
-Revisi setelah masukan dosen ("kok tidak ada master dan slave server?"):
+## Revisi masukan dosen — database master/slave (riwayat repository)
 > Pakai saja yang disarankan dosenku.
 
-Hasil: arsitektur primary-replica (streaming replication), baca dari replica, failover manual. Diuji: replica mati (fallback baca), primary mati (503), promote replica lalu checkout normal.
-
-Revisi kedua (satu server mati tidak boleh mematikan server lain):
+## Revisi masukan dosen — komponen tetap hidup (riwayat repository)
 > Revisi sekali lagi, pokoknya satu server mati semua server lainnya tidak ikut mati.
 
-Hasil: 2 instance backend di belakang load balancer (`src/lb.js`), failover database otomatis (watchdog + `pg_promote()` di `src/db.js`).
-Diuji dengan PostgreSQL 16 lokal: (1) backend-1 dimatikan saat 60 checkout berjalan -> 60/60 sukses (201); (2) primary dimatikan saat checkout berjalan -> ~4 detik 503, replica otomatis dipromosikan, checkout normal lagi, `/stats` consistent=true, tanpa order ganda dan stok minus.
+## Revisi penyelarasan dengan dokumen (permintaan 20 Oktober 2026)
+Alat: ChatGPT.
+
+> Kalau begitu berikan saya seluruh source code yang telah di revisi agar sesuai dengan dokumen. Berikan semua filenya agar saya bisa langsung jalankan nanti setelah menginstal dependencies nya.
+
+**Ruang lingkup hasil:** Satu backend di localhost (P1), PostgreSQL primary–replica async, failover MANUAL, checkout atomik, idempotency, health check, integritas data; rancangan Nginx dan Docker dipersiapkan untuk P2, bukan diaktifkan pada P1.
+
+**Status pengujian:** Pemeriksaan sintaks dan unit test dapat dilakukan dari source code ini; pengujian PostgreSQL dan recovery yang sebenarnya harus dilakukan di perangkat praktikum dan hasilnya tidak boleh direkayasa.
