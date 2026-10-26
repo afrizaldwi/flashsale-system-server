@@ -12,11 +12,12 @@ Basis: **Spesifikasi Arsitektur v1.2** dan **DRP Awal v1.0.2** yang dilampirkan.
 | FR-7 — /stats invarian stok | `src/queries.js`, `scripts/verify-db.js`, `db/verify.sql` | P1 |
 | DRP §7.1 — manual promotion | `scripts/promote-replica.sh` dan `.ps1` | P1 (uji opsional) |
 | DRP §7.4 — penanganan primary lama | Prosedur operator + helper `scripts/reconcile-old-primary.js` dry-run | Rencana P4, BELUM tervalidasi |
-| Nginx load balancer + 2 backend (Arsitektur §4.2) | **Belum dibuat** | P2 |
-| Dockerfile, docker-compose, Docker Volumes | **Belum dibuat** | P2 |
+| Nginx load balancer + 2 backend (Arsitektur §4.2) | `nginx/nginx.conf`, service `nginx` di `docker-compose.yml` | **P2 ✓** |
+| Dockerfile, docker-compose, Docker Volumes | `Dockerfile`, `docker-compose.yml`, `docker/`, `.env.docker` | **P2 ✓** |
 | Stress test 10/100/500/1000 VU | **Belum dilakukan** | P3 |
 | Backup otomatis berkala, restore dan DR Test utama dari dump | **Belum dibuat/diuji** | P4 |
 | File storage/CDN statis Nginx atau MinIO | **Belum dibuat** | P5 |
+
 
 ## Perhatian atas klaim waktu dan keamanan
 - RTO ≤5 menit dan RPO ≤1 menit adalah **target**, bukan hasil pengukuran paket ini.

@@ -1,4 +1,4 @@
-# Flash Sale E-Commerce — Cloud Computing Kelompok 1, Pertemuan 1
+# Flash Sale E-Commerce — Cloud Computing Kelompok 1, Pertemuan 2
 
 **Basis rancangan:** Dokumen Spesifikasi Arsitektur v1.2 (§4.1, §5, §6–8) dan Dokumen DRP Awal v1.0.2 (§4, §7, §9). Paket ini menyelaraskan **source code yang digunakan pada Pertemuan 1** dengan rancangan tersebut.
 
@@ -285,13 +285,151 @@ backups/.gitkeep              placeholder direktori backup Pertemuan 4
 
 | Pertemuan | Deliverable | Status paket |
 |---|---|---|
-| 1 | Arsitektur, DRP awal, frontend/backend localhost, Git | Source code disiapkan, **uji runtime lokal oleh tim** |
-| 2 | Dockerfile, docker-compose, Nginx load balancer 2 backend, volumes | Belum diterapkan |
+| 1 | Arsitektur, DRP awal, frontend/backend localhost, Git | ✅ Source code disiapkan, uji runtime lokal oleh tim |
+| 2 | Dockerfile, docker-compose, Nginx load balancer 2 backend, volumes | ✅ **Diterapkan** — lihat bagian 11 |
 | 3 | k6/Locust/JMeter 10,100,500,1000 VU | Belum diterapkan |
 | 4 | `pg_dump` terjadwal, **hapus container DB saat load test**, restore dari backup dan ukur RTO/RPO; uji failover opsional | Belum diterapkan |
 | 5 | Pisahkan static file ke Nginx/MinIO CDN lokal | Belum diterapkan |
 
 **RTO ≤5 menit, RPO ≤1 menit adalah target DRP**, bukan hasil tes yang sudah terbukti. Interval backup 1 menit pun tidak otomatis membuktikan RPO 1 menit tanpa memperhitungkan durasi backup, failure, dan data akhir yang belum masuk dump.
+
+## 11. Pertemuan 2 — Docker & Nginx
+
+### Arsitektur Container
+
+```text
+Browser / HTTP Client
+        │  :80
+        ▼
+  [flashsale-nginx]        — Nginx 1.25 (load balancer round-robin)
+        │
+   ┌────┴────┐
+   ▼         ▼
+[backend-1] [backend-2]    — Node.js 18 (2 instance API)
+   │         │
+   └────┬────┘
+        │  koneksi DB
+   ┌────┴──────────────────┐
+   ▼                       ▼
+[db-primary] :5432     [db-replica] :5432
+  PostgreSQL 16 PRIMARY    PostgreSQL 16 HOT STANDBY
+  (write + read)           (read only, streaming replication)
+        │
+  pgdata-primary           pgdata-replica
+  (Docker Volume)          (Docker Volume)
+```
+
+### Prasyarat
+
+- **Docker Desktop** versi 24+ (atau Docker Engine + Compose plugin v2)
+- Port yang bebas di host: **80** (Nginx), **5432** (primary debug), **5433** (replica debug)
+
+### Cara Menjalankan
+
+**1. Salin file konfigurasi:**
+
+```powershell
+Copy-Item .env.docker.example .env.docker
+# Edit .env.docker dan ganti password jika perlu (default sudah cukup untuk lokal)
+```
+
+**2. Build image dan jalankan semua container:**
+
+```bash
+docker compose --env-file .env.docker up --build -d
+```
+
+**3. Cek status container:**
+
+```bash
+docker compose ps
+```
+
+Semua container harus berstatus `healthy` setelah sekitar 40–60 detik.
+
+**4. Verifikasi endpoint:**
+
+```bash
+# Melalui Nginx (port 80) — load balanced ke backend-1 atau backend-2
+curl http://localhost/health
+curl http://localhost/products
+curl http://localhost/stats
+
+# Cek header X-Read-From untuk memastikan replica digunakan
+curl -i http://localhost/products | findstr X-Read-From
+```
+
+Ekspektasi `/health`:
+```json
+{
+  "status": "ok",
+  "db": "up",
+  "replica": "up",
+  "failover_mode": "manual"
+}
+```
+
+### Perintah Docker Berguna
+
+```bash
+# Lihat log semua container
+docker compose logs -f
+
+# Log container tertentu
+docker compose logs -f nginx
+docker compose logs -f db-primary
+docker compose logs -f backend-1
+
+# Hentikan semua (data volume tetap ada)
+docker compose down
+
+# Hentikan dan HAPUS volume (data hilang — hanya untuk reset total)
+docker compose down -v
+
+# Rebuild image setelah perubahan kode
+docker compose --env-file .env.docker up --build -d
+
+# Masuk ke shell container primary
+docker exec -it flashsale-db-primary psql -U postgres -d flashsale
+
+# Cek replikasi di primary
+docker exec flashsale-db-primary psql -U postgres -c "SELECT * FROM pg_stat_replication;"
+
+# Cek replica masih standby
+docker exec flashsale-db-replica psql -U postgres -d flashsale -c "SELECT pg_is_in_recovery();"
+```
+
+### Docker Volumes (Fondasi DRP)
+
+| Volume | Container | Isi | Persisten |
+|---|---|---|---|
+| `flashsale-pgdata-primary` | db-primary | Data PostgreSQL primary | ✅ Tetap ada saat `docker compose down` |
+| `flashsale-pgdata-replica` | db-replica | Data PostgreSQL replica | ✅ Tetap ada saat `docker compose down` |
+
+Data tidak hilang saat container direstart atau dihentikan. Hanya `docker compose down -v` atau `docker volume rm` yang akan menghapus data.
+
+### Peta File Docker
+
+```text
+Dockerfile                        multi-stage build Node.js 18 alpine
+docker-compose.yml                definisi 5 service + 2 volume + 1 network
+nginx/nginx.conf                  load balancer round-robin ke backend-1 & backend-2
+docker/primary-init.sql           init schema, seed, user replicator (dijalankan sekali)
+docker/primary-postgresql.conf    WAL streaming replication config
+docker/primary-pg_hba.conf        izin koneksi dari subnet Docker
+docker/replica-entrypoint.sh     pg_basebackup + start hot standby
+.env.docker                       konfigurasi runtime (tidak di-commit)
+.env.docker.example               template yang aman di-commit
+.dockerignore                     file yang dikecualikan dari build context
+```
+
+### Troubleshooting Docker
+
+- **`db-replica` stuck `starting`**: primary belum healthy. Tunggu atau cek `docker compose logs db-primary`.
+- **`permission denied` saat pg_basebackup**: user replicator belum dibuat. Hapus volume replica dan coba ulang: `docker volume rm flashsale-pgdata-replica && docker compose up -d db-replica`.
+- **Port 80 sudah dipakai**: ganti port host di `docker-compose.yml`, baris `ports: "80:80"` jadi misalnya `"8080:80"`.
+- **Port 5432/5433 sudah dipakai** oleh PostgreSQL lokal: hapus `ports:` dari service db-primary/db-replica di compose, atau hentikan service PostgreSQL lokal terlebih dahulu.
+- **Image lama**: jalankan `docker compose build --no-cache` untuk rebuild dari awal.
 
 ## Troubleshooting singkat
 

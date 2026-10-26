@@ -1,0 +1,39 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# .dockerignore — file yang TIDAK disalin ke Docker build context
+# Pertemuan 2: Containerization (Docker)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Dependencies host (akan diinstal di dalam container)
+node_modules/
+
+# File environment yang mengandung secrets
+.env
+.env.*
+
+# Git
+.git/
+.gitignore
+
+# Dokumentasi dan file yang tidak dibutuhkan runtime
+README.md
+PROMPTS.md
+docs/
+backups/
+
+# Test dan scripts setup lokal (tidak dibutuhkan di container)
+tests/
+scripts/setup-replica.*
+scripts/promote-replica.*
+scripts/stop-replica.*
+scripts/reconcile-old-primary.js
+scripts/cluster.js
+
+# Log dan temp files
+*.log
+*.pid
+npm-debug.log*
+
+# Editor
+.DS_Store
+.vscode/
+*.swp

@@ -21,3 +21,25 @@ Alat: ChatGPT.
 **Ruang lingkup hasil:** Satu backend di localhost (P1), PostgreSQL primary–replica async, failover MANUAL, checkout atomik, idempotency, health check, integritas data; rancangan Nginx dan Docker dipersiapkan untuk P2, bukan diaktifkan pada P1.
 
 **Status pengujian:** Pemeriksaan sintaks dan unit test dapat dilakukan dari source code ini; pengujian PostgreSQL dan recovery yang sebenarnya harus dilakukan di perangkat praktikum dan hasilnya tidak boleh direkayasa.
+
+## Pertemuan 2 — Containerization (26 Oktober 2026)
+Alat: Google Antigravity (Gemini/Claude Sonnet 4.6 Thinking).
+
+> Pertemuan 2: Containerization (Docker). Fokus: Standardisasi environment menggunakan teknologi kontainer.
+> 1. Buat Dockerfile untuk aplikasi.
+> 2. Buat docker-compose.yml untuk menggabungkan layanan aplikasi dan database.
+> 3. Implementasikan arsitektur multi-container dan konfigurasikan Docker Volumes untuk memastikan data persisten (menjadi fondasi DRP).
+> baca detailnya pada folder docs fokus pada pertemuan 2
+
+**File yang dibuat:**
+- `Dockerfile` — multi-stage build (deps + runtime), user non-root, HEALTHCHECK
+- `docker-compose.yml` — 5 service: db-primary, db-replica, backend-1, backend-2, nginx
+- `nginx/nginx.conf` — Nginx load balancer round-robin ke 2 backend
+- `docker/primary-init.sql` — inisialisasi schema + seed + user replicator
+- `docker/primary-postgresql.conf` — WAL streaming replication config
+- `docker/primary-pg_hba.conf` — izin koneksi replication dari subnet Docker
+- `docker/replica-entrypoint.sh` — pg_basebackup + start hot standby
+- `.env.docker` / `.env.docker.example` — konfigurasi Docker
+- `.dockerignore` — minimisasi build context
+
+**Ruang lingkup:** Arsitektur sesuai Spesifikasi v1.2 §4.2: Nginx → 2 backend → primary (write) + replica (read/fallback). Volume persisten `pgdata-primary` dan `pgdata-replica` sebagai fondasi DRP Pertemuan 4.
