@@ -8,3 +8,7 @@ backups/*
 *.log
 *.pid
 .DS_Store
+.p3/
+.env.p3
+results/p3/
+!.env.p3.example

@@ -14,7 +14,9 @@ Basis: **Spesifikasi Arsitektur v1.2** dan **DRP Awal v1.0.2** yang dilampirkan.
 | DRP §7.4 — penanganan primary lama | Prosedur operator + helper `scripts/reconcile-old-primary.js` dry-run | Rencana P4, BELUM tervalidasi |
 | Nginx load balancer + 2 backend (Arsitektur §4.2) | `nginx/nginx.conf`, service `nginx` di `docker-compose.yml` | **P2 ✓** |
 | Dockerfile, docker-compose, Docker Volumes | `Dockerfile`, `docker-compose.yml`, `docker/`, `.env.docker` | **P2 ✓** |
-| Stress test 10/100/500/1000 VU | **Belum dilakukan** | P3 |
+| Stress test 10/100/500/1000 VU | Scripts/runner tersedia di `tests/load/` dan `scripts/p3/`; campaign performa belum dijalankan | P3 |
+| Autoscaling backend otomatis | Compose P3 terisolasi, controller CPU, discovery/readiness, safe reload dan drain; lihat `docs/PERTEMUAN_3.md` | P3 |
+| Monitoring dan laporan P3 | Collector JSON/CSV, event scaling, validasi database dan laporan HTML/SVG; hasil campaign menunggu pengujian | P3 |
 | Backup otomatis berkala, restore dan DR Test utama dari dump | **Belum dibuat/diuji** | P4 |
 | File storage/CDN statis Nginx atau MinIO | **Belum dibuat** | P5 |
 

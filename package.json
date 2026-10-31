@@ -11,7 +11,15 @@
     "db:reset": "node scripts/init-db.js --reset",
     "db:verify": "node scripts/verify-db.js",
     "test:race": "node scripts/test-race.js",
-    "test": "node --test tests/core.test.js"
+    "test": "node scripts/test.js",
+    "p3:init": "node scripts/p3/cli.js init",
+    "p3:config": "node scripts/p3/cli.js config",
+    "p3:start": "node scripts/p3/cli.js start",
+    "p3:controller": "node scripts/p3/cli.js controller",
+    "p3:status": "node scripts/p3/cli.js status",
+    "p3:verify": "node scripts/p3/cli.js verify",
+    "p3:run": "node scripts/p3/run.js",
+    "p3:report": "node scripts/p3/report.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

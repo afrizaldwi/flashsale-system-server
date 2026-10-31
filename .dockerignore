@@ -37,3 +37,6 @@ npm-debug.log*
 .DS_Store
 .vscode/
 *.swp
+.p3/
+results/
+tests/load/

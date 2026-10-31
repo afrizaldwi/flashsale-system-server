@@ -1,0 +1,121 @@
+name: flashsale-p3
+services:
+  db-primary:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: p3_admin
+      POSTGRES_DB: flashsale_p3
+      POSTGRES_PASSWORD: ${P3_DB_PASSWORD:?Run npm run p3:init}
+      P3_REPLICATION_PASSWORD: ${P3_REPLICATION_PASSWORD:?Run npm run p3:init}
+      P3_ID: ${P3_ID:?Run npm run p3:init}
+    command:
+      [
+        postgres,
+        -c,
+        wal_level=replica,
+        -c,
+        max_wal_senders=5,
+        -c,
+        max_replication_slots=5,
+        -c,
+        wal_keep_size=256MB,
+        -c,
+        max_connections=100,
+        -c,
+        shared_buffers=128MB,
+        -c,
+        log_min_duration_statement=1000,
+      ]
+    volumes:
+      - primary:/var/lib/postgresql/data
+      - ./docker/p3/init.sh:/docker-entrypoint-initdb.d/01-p3.sh:ro
+      - ./docker/p3/db-health.sh:/opt/p3/db-health.sh:ro
+      - ./db/schema.sql:/opt/p3/schema.sql:ro
+    healthcheck:
+      test: [CMD, sh, /opt/p3/db-health.sh, primary]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+      start_period: 20s
+    cpus: 2
+    mem_limit: 1g
+    networks: [p3]
+    labels: { flashsale.environment: p3 }
+  db-replica:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: p3_admin
+      POSTGRES_DB: flashsale_p3
+      POSTGRES_PASSWORD: ${P3_DB_PASSWORD:?Run npm run p3:init}
+      P3_REPLICATION_PASSWORD: ${P3_REPLICATION_PASSWORD:?Run npm run p3:init}
+      PGDATA: /var/lib/postgresql/data
+    entrypoint: [sh, /opt/p3/replica.sh]
+    volumes:
+      - replica:/var/lib/postgresql/data
+      - ./docker/p3/replica.sh:/opt/p3/replica.sh:ro
+      - ./docker/p3/db-health.sh:/opt/p3/db-health.sh:ro
+    depends_on:
+      db-primary: { condition: service_healthy }
+    healthcheck:
+      test: [CMD, sh, /opt/p3/db-health.sh, replica]
+      interval: 5s
+      timeout: 4s
+      retries: 18
+      start_period: 30s
+    cpus: 2
+    mem_limit: 1g
+    networks: [p3]
+    labels: { flashsale.environment: p3 }
+  backend:
+    build: .
+    image: flashsale-api:p3
+    environment:
+      PORT: 3000
+      DB_HOST: db-primary
+      DB_PORT: 5432
+      DB_REPLICA_HOST: db-replica
+      DB_REPLICA_PORT: 5432
+      DB_NAME: flashsale_p3
+      DB_USER: p3_admin
+      DB_PASSWORD: ${P3_DB_PASSWORD:?Run npm run p3:init}
+      DB_POOL_MAX: ${P3_POOL_MAX:-10}
+      P3_OBSERVABILITY: "1"
+      P3_ID: ${P3_ID:?Run npm run p3:init}
+    depends_on:
+      db-primary: { condition: service_healthy }
+      db-replica: { condition: service_healthy }
+    healthcheck:
+      test: [CMD, node, scripts/p3/probe.js, /live]
+      interval: 5s
+      timeout: 4s
+      retries: 3
+      start_period: 10s
+    stop_grace_period: 100s
+    cpus: ${P3_BACKEND_CPUS:-0.5}
+    mem_limit: 512m
+    networks: [p3]
+    labels: { flashsale.environment: p3 }
+  nginx:
+    image: nginx:1.25-alpine
+    entrypoint: [sh, /opt/p3/start.sh]
+    volumes:
+      - ./nginx/p3/start.sh:/opt/p3/start.sh:ro
+      - ./nginx/p3/bootstrap.conf:/opt/p3/bootstrap.conf:ro
+    ports: ["127.0.0.1:${P3_PORT:-8080}:80"]
+    healthcheck:
+      test: [CMD, wget, -qO-, "http://127.0.0.1/nginx-health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    cpus: 1
+    mem_limit: 256m
+    networks: [p3]
+    labels: { flashsale.environment: p3 }
+networks:
+  p3:
+    labels: { flashsale.environment: p3 }
+volumes:
+  primary:
+    labels: { flashsale.environment: p3 }
+  replica:
+    labels: { flashsale.environment: p3 }

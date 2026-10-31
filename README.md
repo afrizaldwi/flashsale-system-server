@@ -1,5 +1,7 @@
 # Flash Sale E-Commerce — Cloud Computing Kelompok 1, Pertemuan 2
 
+**Pertemuan 3:** isolated Docker Compose stack, automatic backend scaling, monitoring and k6 tooling are documented in [docs/PERTEMUAN_3.md](docs/PERTEMUAN_3.md). Start with `npm run p3:init`, `npm run p3:config`, and `npm run p3:start`. Pilot/final performance campaigns require explicit execution and have not been run. PowerShell users can use `npm.cmd`.
+
 **Basis rancangan:** Dokumen Spesifikasi Arsitektur v1.2 (§4.1, §5, §6–8) dan Dokumen DRP Awal v1.0.2 (§4, §7, §9). Paket ini menyelaraskan **source code yang digunakan pada Pertemuan 1** dengan rancangan tersebut.
 
 **Perubahan dari repository awal:** Hapus load balancer Node.js (`src/lb.js`) dan mode cluster (`scripts/cluster.js`) dari baseline Pertemuan 1; hilangkan watchdog automatic database failover; gunakan failover **manual** dengan prosedur fencing, promosi, perubahan konfigurasi koneksi dan restart aplikasi. Nginx, 2 backend, Docker dan backup otomatis **belum** dijalankan karena merupakan pekerjaan pertemuan berikutnya.

@@ -5,9 +5,16 @@ const express = require("express");
 const { primary, readProducts, replicaHealth } = require("./db");
 const { isDbUnavailable, sendError } = require("./errors");
 const { perProduct } = require("./queries");
+const db = require("./db");
+const { installLifecycle } = require("./lifecycle");
+const observation =
+  process.env.P3_OBSERVABILITY === "1"
+    ? require("./observability").createObservability(db.poolStats)
+    : null;
 
 const app = express();
 app.disable("x-powered-by");
+if (observation) app.use(observation.middleware);
 app.use(express.json({ limit: "32kb" }));
 app.use(express.static(path.join(__dirname, "..", "frontend")));
 
@@ -30,21 +37,17 @@ app.post("/checkout", async (req, res) => {
   const key = req.get("Idempotency-Key");
   const { user_id: userId, product_id: productId, qty } = req.body || {};
   if (!key || key.length > 100 || !/^[\x21-\x7E]+$/.test(key)) {
-    return res
-      .status(400)
-      .json({
-        error: "BAD_REQUEST",
-        message:
-          "Idempotency-Key wajib, panjang 1–100 karakter ASCII tanpa spasi.",
-      });
+    return res.status(400).json({
+      error: "BAD_REQUEST",
+      message:
+        "Idempotency-Key wajib, panjang 1–100 karakter ASCII tanpa spasi.",
+    });
   }
   if (!integer(userId) || !integer(productId) || !integer(qty)) {
-    return res
-      .status(400)
-      .json({
-        error: "BAD_REQUEST",
-        message: "user_id, product_id, qty harus integer positif.",
-      });
+    return res.status(400).json({
+      error: "BAD_REQUEST",
+      message: "user_id, product_id, qty harus integer positif.",
+    });
   }
 
   let client;
@@ -89,12 +92,10 @@ app.post("/checkout", async (req, res) => {
         productId,
       ]);
       return found.rowCount === 0
-        ? res
-            .status(404)
-            .json({
-              error: "PRODUCT_NOT_FOUND",
-              message: "Produk tidak ditemukan.",
-            })
+        ? res.status(404).json({
+            error: "PRODUCT_NOT_FOUND",
+            message: "Produk tidak ditemukan.",
+          })
         : res
             .status(409)
             .json({ error: "SOLD_OUT", message: "Stok tidak mencukupi." });
@@ -159,12 +160,10 @@ app.get("/orders/:id", async (req, res) => {
     );
     return result.rows.length
       ? res.json(result.rows[0])
-      : res
-          .status(404)
-          .json({
-            error: "ORDER_NOT_FOUND",
-            message: "Pesanan tidak ditemukan.",
-          });
+      : res.status(404).json({
+          error: "ORDER_NOT_FOUND",
+          message: "Pesanan tidak ditemukan.",
+        });
   } catch (error) {
     return sendError(res, error);
   }
@@ -251,10 +250,17 @@ app.use((error, _req, res, _next) => {
 
 if (require.main === module) {
   const port = Number(process.env.PORT || 3000);
-  app.listen(port, () =>
+  const server = app.listen(port, () =>
     console.log(
       `Flash Sale Pertemuan 1 berjalan di http://localhost:${port} (failover: MANUAL)`,
     ),
   );
+  const management = observation?.listen(db.readiness);
+  installLifecycle(server, {
+    management,
+    close: db.close,
+    onDrain: () => observation?.drain(),
+    onClosed: () => observation?.close(),
+  });
 }
 module.exports = app;

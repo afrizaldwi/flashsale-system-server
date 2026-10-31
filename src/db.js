@@ -11,7 +11,12 @@ const common = {
   idleTimeoutMillis: 10000,
 };
 function makePool(host, port, label) {
-  const pool = new Pool({ ...common, host, port: Number(port) });
+  const pool = new Pool({
+    ...common,
+    host,
+    port: Number(port),
+    application_name: `flashsale-${process.env.HOSTNAME || "local"}-${label}`,
+  });
   // Koneksi idle yang terputus tidak boleh menyebabkan proses Node berhenti.
   pool.on("error", (error) =>
     console.error(`[DB:${label}] koneksi idle gagal:`, error.message),
@@ -86,4 +91,52 @@ async function replicaHealth() {
   }
 }
 
-module.exports = { primary, replica, readProducts, replicaHealth };
+// A separate bounded connection keeps readiness independent of the request queue.
+const readinessPool =
+  process.env.P3_OBSERVABILITY === "1"
+    ? new Pool({
+        ...common,
+        host: process.env.DB_HOST,
+        port: Number(process.env.DB_PORT || 5432),
+        max: 1,
+        statement_timeout: 2000,
+        application_name: "p3-readiness",
+      })
+    : null;
+readinessPool?.on("error", () => {});
+async function readiness() {
+  const result = await (readinessPool || primary).query(
+    "SELECT NOT pg_is_in_recovery() AS ready",
+  );
+  return { ready: result.rows[0].ready };
+}
+function poolStats() {
+  const stats = (pool) =>
+    pool
+      ? {
+          total: pool.totalCount,
+          idle: pool.idleCount,
+          waiting: pool.waitingCount,
+          max: pool.options.max,
+        }
+      : null;
+  return {
+    primary: stats(primary),
+    replica: stats(replica),
+    readiness: stats(readinessPool),
+  };
+}
+async function close() {
+  await Promise.all(
+    [primary, replica, readinessPool].filter(Boolean).map((pool) => pool.end()),
+  );
+}
+module.exports = {
+  primary,
+  replica,
+  readProducts,
+  replicaHealth,
+  readiness,
+  poolStats,
+  close,
+};
