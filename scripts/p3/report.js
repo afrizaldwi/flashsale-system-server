@@ -75,6 +75,11 @@ async function readRun(directory) {
     blocked = [],
     groups = {},
     seconds = new Map();
+  let first_infrastructure_error = null;
+  const windowStart =
+    Date.parse(manifest.workload_started) +
+    (manifest.measurement_start_seconds || 0) * 1000;
+  const windowEnd = windowStart + (manifest.measurement_seconds || 0) * 1000;
   let raw = path.join(directory, "k6-samples.ndjson.gz");
   if (!fs.existsSync(raw)) raw = path.join(directory, "k6-samples.ndjson");
   await lines(raw, (event) => {
@@ -98,10 +103,40 @@ async function readRun(directory) {
       case "checkout_created":
         totals.created += value;
         break;
+      case "http_reqs":
+        if ((tags.status === "0" || Number(tags.status) >= 500) && (!first_infrastructure_error || !first_infrastructure_error.error)) {
+          const t = Date.parse(time);
+          const k6_spawned = manifest.k6_spawned ? Date.parse(manifest.k6_spawned) : null;
+          const meas_start = Number.isFinite(windowStart) ? windowStart : null;
+          first_infrastructure_error = {
+            time_utc: time,
+            seconds_since_k6_spawn: k6_spawned && Number.isFinite(t) ? Number(((t - k6_spawned) / 1000).toFixed(3)) : null,
+            seconds_since_measurement_start: meas_start && Number.isFinite(t) ? Math.max(0, Number(((t - meas_start) / 1000).toFixed(3))) : 0,
+            status: tags.status ? Number(tags.status) : 0,
+            error: tags.error || null,
+            error_code: tags.error_code || null,
+            endpoint: tags.endpoint || null,
+          };
+        }
+        break;
       case "infrastructure_error":
         totals.infra += value;
         totals.infraN++;
         bucket.infra += value;
+        if (value > 0 && !first_infrastructure_error) {
+          const t = Date.parse(time);
+          const k6_spawned = manifest.k6_spawned ? Date.parse(manifest.k6_spawned) : null;
+          const meas_start = Number.isFinite(windowStart) ? windowStart : null;
+          first_infrastructure_error = {
+            time_utc: time,
+            seconds_since_k6_spawn: k6_spawned && Number.isFinite(t) ? Number(((t - k6_spawned) / 1000).toFixed(3)) : null,
+            seconds_since_measurement_start: meas_start && Number.isFinite(t) ? Math.max(0, Number(((t - meas_start) / 1000).toFixed(3))) : 0,
+            status: tags.status ? Number(tags.status) : 0,
+            error: tags.error || null,
+            error_code: tags.error_code || null,
+            endpoint: tags.endpoint || null,
+          };
+        }
         break;
       case "business_sold_out":
         totals.soldout += value;
@@ -148,10 +183,6 @@ async function readRun(directory) {
   const before = readJson(path.join(directory, "db-before.json"), null),
     after = readJson(path.join(directory, "db-after.json"), null);
   const validation = [];
-  const windowStart =
-    Date.parse(manifest.workload_started) +
-    (manifest.measurement_start_seconds || 0) * 1000;
-  const windowEnd = windowStart + manifest.measurement_seconds * 1000;
   const collectorErrors = [];
   await lines(path.join(directory, "collector-errors.ndjson"), (error) => {
     const time = Date.parse(error.time);
@@ -233,6 +264,7 @@ async function readRun(directory) {
     infrastructure_error_rate: totals.infraN
       ? totals.infra / totals.infraN
       : null,
+    first_infrastructure_error,
     sold_out_rate: totals.soldoutN ? totals.soldout / totals.soldoutN : null,
     validation_error_rate: totals.invalidN
       ? totals.invalid / totals.invalidN

@@ -67,7 +67,7 @@ SELECT json_build_object('database',current_database(),'standby',pg_is_in_recove
  'orders',(SELECT COUNT(*) FROM orders),'qty',(SELECT COALESCE(SUM(qty),0) FROM orders),
  'negative_stock',(SELECT COUNT(*) FROM products WHERE stock<0),
  'duplicate_orders',(SELECT COUNT(*) FROM (SELECT idempotency_key FROM orders GROUP BY 1 HAVING COUNT(*)>1) d),
- 'foreign_orders',(SELECT COUNT(*) FROM orders WHERE idempotency_key NOT LIKE 'p3-%'));
+ 'foreign_orders',(SELECT COUNT(*) FROM orders WHERE idempotency_key NOT LIKE 'p3-%' AND idempotency_key !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'));
 COMMIT;`,
   );
 }

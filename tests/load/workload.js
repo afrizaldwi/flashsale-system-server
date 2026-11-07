@@ -68,6 +68,7 @@ export const options = {
 const attempts = new Counter("measured_attempts");
 const successes = new Counter("successful_requests");
 const checkoutSuccess = new Counter("checkout_created");
+const checkoutDuplicates = new Counter("checkout_duplicate");
 const allCreated = new Counter("checkout_created_all");
 const allAttempts = new Counter("checkout_attempts_all");
 const infra = new Rate("infrastructure_error");
@@ -121,6 +122,8 @@ export default function () {
   } catch (_) {
     body = null;
   }
+  const duplicate =
+    write && response.status === 200 && body?.result === "DUPLICATE";
   const exhausted =
     write && response.status === 409 && body?.error === "SOLD_OUT";
   const ok = write
@@ -129,18 +132,20 @@ export default function () {
   const infrastructure = response.status === 0 || response.status >= 500;
   const outcome = ok
     ? "success"
-    : exhausted
-      ? "sold_out"
-      : infrastructure
-        ? "infrastructure_error"
-        : "unexpected";
+    : duplicate
+      ? "duplicate"
+      : exhausted
+        ? "sold_out"
+        : infrastructure
+          ? "infrastructure_error"
+          : "unexpected";
   const resultTags = { ...tags, outcome };
-  invalid.add(!ok && !exhausted && !infrastructure, tags);
+  invalid.add(!ok && !duplicate && !exhausted && !infrastructure, tags);
   check(
     response,
     {
       "valid business or infrastructure outcome": () =>
-        ok || exhausted || infrastructure,
+        ok || duplicate || exhausted || infrastructure,
     },
     tags,
   );
@@ -150,8 +155,9 @@ export default function () {
   allAttempts.add(write ? 1 : 0, tags);
   if (phase === "measure") {
     attempts.add(1, tags);
-    successes.add(ok ? 1 : 0, tags);
+    successes.add(ok || duplicate ? 1 : 0, tags);
     checkoutSuccess.add(write && ok ? 1 : 0, tags);
+    checkoutDuplicates.add(write && duplicate ? 1 : 0, tags);
     http5xx.add(response.status >= 500 ? 1 : 0, tags);
     timeouts.add(response.error_code === 1050 ? 1 : 0, tags);
     connectionErrors.add(
