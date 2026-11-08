@@ -8,6 +8,8 @@ const { decide, afterAction } = require("./policy");
 const { assertIsolation } = require("./dataset");
 const { sleep, writeJson, readJson, append, lock } = require("./util");
 const { observeTransition } = require("./transition-monitor");
+const { assertRecoveryComplete } = require("./recovery");
+const { withOperationLock } = require("./util");
 function ordinal(container) {
   return Number(container.Config.Labels["com.docker.compose.container-number"]);
 }
@@ -105,6 +107,10 @@ class Controller {
     throw new Error("Backend readiness timeout; original routes preserved");
   }
   async scaleIn(containers, target) {
+    return withOperationLock(this.c.runtime, () => this.scaleInLocked(containers, target));
+  }
+  async scaleInLocked(containers, target) {
+    assertRecoveryComplete(this.c);
     const candidate = [...containers].sort(
       (a, b) => ordinal(b) - ordinal(a),
     )[0];
@@ -164,6 +170,9 @@ class Controller {
     }
   }
   async recover() {
+    return withOperationLock(this.c.runtime, () => this.recoverLocked());
+  }
+  async recoverLocked() {
     await this.docker.preflight();
     await assertIsolation(this.docker);
     if (
@@ -211,6 +220,7 @@ class Controller {
       enabled: true,
     });
     if (control.paused || this.state.failures >= 3) return;
+    assertRecoveryComplete(this.c);
     if (this.state.pending?.phase === "terminating")
       throw new Error(
         "Pending graceful termination requires controller recovery; no forced removal",
@@ -312,19 +322,13 @@ class Controller {
     process.on("SIGINT", stop);
     process.on("SIGTERM", stop);
     try {
-      await this.recover();
+      assertRecoveryComplete(this.c);
+      await withOperationLock(this.c.runtime, () => this.recover(), { wait: true });
       onReady?.();
       while (!stopping && !signal?.aborted) {
         const start = Date.now();
         try {
-          const releaseOperation = lock(
-            path.join(this.c.runtime, "operation.lock"),
-          );
-          try {
-            await this.tick();
-          } finally {
-            releaseOperation();
-          }
+          await withOperationLock(this.c.runtime, () => this.tick());
         } catch (error) {
           if (error.code !== "P3_LOCKED") {
             this.state.failures++;

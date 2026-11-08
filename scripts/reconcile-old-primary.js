@@ -24,7 +24,7 @@
 
 require("dotenv").config();
 const { execSync } = require("node:child_process");
-const { Client } = require("pg");
+const { ResilientClient: Client } = require("../src/db-client");
 
 const DRP_STACKS = {
   p2: {

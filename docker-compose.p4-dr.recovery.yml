@@ -1,0 +1,13 @@
+name: flashsale-p4-dr
+services:
+  db-primary:
+    volumes:
+      - p4-dr-primary-recovery:/var/lib/postgresql/data
+      - ./docker/p3/init.sh:/docker-entrypoint-initdb.d/01-p3.sh:ro
+      - ./docker/p3/db-health.sh:/opt/p3/db-health.sh:ro
+      - ./db/schema.sql:/opt/p3/schema.sql:ro
+  db-replica:
+    volumes:
+      - p4-dr-replica-recovery:/var/lib/postgresql/data
+      - ./docker/p3/replica.sh:/opt/p3/replica.sh:ro
+      - ./docker/p3/db-health.sh:/opt/p3/db-health.sh:ro

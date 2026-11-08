@@ -1,0 +1,438 @@
+
+> flashsale-cloud-kelompok-1@1.1.0 test
+> node scripts/test.js
+
+✔ error koneksi dan penutupan DB diklasifikasikan sebagai unavailable (1.2489ms)
+✔ query verifikasi menghitung ketidaksesuaian stok terhadap order (0.4393ms)
+✔ skema melindungi stok nonnegatif dan idempotency key unik (0.5855ms)
+✔ automatic failover tidak ada pada konfigurasi Pertemuan 1 (0.5481ms)
+✔ failover: konfigurasi stack P2 dan P3 terdefinisi dengan benar (3.8009ms)
+✔ failover: inspectContainerState menerapkan validasi identitas ketat (fail-closed) (1.1767ms)
+✔ failover: validateFencing menerapkan prinsip fail-closed secara ketat (0.7161ms)
+✔ failover: validateReplicaForPromotion memvalidasi identitas dan standby recovery mode (0.5444ms)
+✔ failover: executePromotion berhasil saat pg_promote(false) sukses dan recovery berubah menjadi false (0.8374ms)
+✔ failover: executePromotion gagal saat pg_promote(false) ditolak postgres (0.6667ms)
+✔ failover: executePromotion mendeteksi timeout saat promosi masih berlangsung di background (41.8347ms)
+✔ failover: executePromotion menangani kondisi hasil pemeriksaan postgres tidak tersedia saat timeout (40.7775ms)
+✔ failover: getBackendInventory mendeteksi jumlah instance dinamis (2, 3, 6) dan menolak anomali (1.1256ms)
+✔ failover: verifyBackendInstances membedakan kondisi PASS, FAIL, dan UNKNOWN (2.7655ms)
+✔ failover: verifyBackendInstances mendeteksi backend masih terhubung ke primary lama (DB_HOST atau IP mismatch) (1.0295ms)
+✔ failover: validateReplicaForPromotion memvalidasi replication freshness dan menandai RPO UNKNOWN jika primary terisolasi (0.2355ms)
+[PERINGATAN FENCING] Old primary (127.0.0.1:5432) berstatus read-write. default_transaction_read_only=on atau sesi lokal BUKAN bukti fencing definitif. Pembacaan dilanjutkan dalam BEGIN TRANSACTION READ ONLY untuk audit/inspeksi.
+===========================================================================
+[RECONCILIATION AUDIT - VERIFIKASI IDENTITAS STACK]
+{
+  "mode": "DRY_RUN (Audit Only)",
+  "stack": "P3",
+  "database_verified": "flashsale_p3",
+  "connection_method": "docker_exec",
+  "api_base": "http://127.0.0.1:8080",
+  "api_preflight": {
+    "ok": true,
+    "database": "flashsale_p3",
+    "in_recovery": false
+  },
+  "old_orders_count": 2,
+  "new_orders_count": 0,
+  "tail_orders_count": 2,
+  "unidentifiable_orders_count": 0
+}
+===========================================================================
+
+Ditemukan 2 transaksi pada old primary yang belum tercatat di new primary:
+  - [PERLU DITINJAU] Key: tx-1 | User: 1 | Product: 1 | Qty: 1
+  - [PERLU DITINJAU] Key: tx-2 | User: 2 | Product: 1 | Qty: 1
+
+[AUDIT SELESAI] Mode dry-run selesai. Tidak ada transaksi yang dikirim atau dipulihkan.
+
+[PERINGATAN DRP KELOMPOK 1]
+1. Periksa endpoint /stats pada primary baru untuk memverifikasi konsistensi invarian stok.
+2. JANGAN PERNAH menyatukan dua timeline WAL PostgreSQL secara otomatis (timeline merge is forbidden).
+3. Setelah rekonsiliasi selesai, inisialisasi ulang old primary dari new primary via pg_basebackup.
+===========================================================================
+[RECONCILIATION AUDIT - VERIFIKASI IDENTITAS STACK]
+{
+  "mode": "APPLY (Replay to New Primary)",
+  "stack": "P3",
+  "database_verified": "flashsale_p3",
+  "connection_method": "docker_exec",
+  "api_base": "http://127.0.0.1:8080",
+  "api_preflight": {
+    "ok": true,
+    "database": "flashsale_p3",
+    "in_recovery": false
+  },
+  "old_orders_count": 2,
+  "new_orders_count": 0,
+  "tail_orders_count": 2,
+  "unidentifiable_orders_count": 0
+}
+===========================================================================
+
+Ditemukan 2 transaksi pada old primary yang belum tercatat di new primary:
+  - Key: tx-1 -> HTTP 201 [RECOVERED]: Berhasil dipulihkan ke primary baru.
+  - Key: tx-2 -> HTTP 409 [STOCK_EXHAUSTED]: Stok habis pada primary baru. PERLU KOMPENSASI MANUAL (refund/pemberitahuan).
+
+[STATUS: PARTIAL] Rekonsiliasi selesai dengan hasil parsial. Perlu penanganan manual:
+  - Recovered: 1
+  - Already Committed: 0
+  - Stock Exhausted: 1
+  - Unknown Outcome: 0
+
+[PERINGATAN DRP KELOMPOK 1]
+1. Periksa endpoint /stats pada primary baru untuk memverifikasi konsistensi invarian stok.
+2. JANGAN PERNAH menyatukan dua timeline WAL PostgreSQL secara otomatis (timeline merge is forbidden).
+3. Setelah rekonsiliasi selesai, inisialisasi ulang old primary dari new primary via pg_basebackup.
+===========================================================================
+[RECONCILIATION AUDIT - VERIFIKASI IDENTITAS STACK]
+{
+  "mode": "APPLY (Replay to New Primary)",
+  "stack": "P3",
+  "database_verified": "flashsale_p3",
+  "connection_method": "docker_exec",
+  "api_base": "http://127.0.0.1:8080",
+  "api_preflight": {
+    "ok": true,
+    "database": "flashsale_p3",
+    "in_recovery": false
+  },
+  "old_orders_count": 2,
+  "new_orders_count": 0,
+  "tail_orders_count": 2,
+  "unidentifiable_orders_count": 0
+}
+===========================================================================
+
+Ditemukan 2 transaksi pada old primary yang belum tercatat di new primary:
+  - Key: tx-1 -> HTTP 201 [RECOVERED]: Berhasil dipulihkan ke primary baru.
+  - Key: tx-2 -> HTTP 201 [RECOVERED]: Berhasil dipulihkan ke primary baru.
+
+[STATUS: COMPLETE] Seluruh 2 tail orders berhasil dipulihkan secara penuh.
+
+[PERINGATAN DRP KELOMPOK 1]
+1. Periksa endpoint /stats pada primary baru untuk memverifikasi konsistensi invarian stok.
+2. JANGAN PERNAH menyatukan dua timeline WAL PostgreSQL secara otomatis (timeline merge is forbidden).
+3. Setelah rekonsiliasi selesai, inisialisasi ulang old primary dari new primary via pg_basebackup.
+✔ reconcile: konfigurasi DRP stack P2 menggunakan database P2 (1.4949ms)
+✔ reconcile: konfigurasi DRP stack P3 menggunakan database P3 dan docker_exec (0.3316ms)
+✔ reconcile: proteksi isolasi mencegah fallback diam-diam dari P3 ke port database P2 (0.7522ms)
+✔ reconcile: DockerExecAdapter memvalidasi role database, read-only protection, dan identitas (1.5905ms)
+✔ reconcile: findPendingOrders memfilter order yang belum ada di primary baru (0.3373ms)
+✔ reconcile: findPendingOrders menandai order tanpa idempotency key sebagai unidentifiable (0.3274ms)
+✔ reconcile: classifyReconcileOutcome mengklasifikasikan respons HTTP rekonsiliasi dengan aman (0.2739ms)
+✔ reconcile: TcpClientAdapter memvalidasi status read-write, fencing, dan database identity P2 (3.9335ms)
+✔ reconcile: verifyTargetApi memvalidasi identitas database dan role writer endpoint API (3.327ms)
+✔ reconcile: runReconciliation membedakan mode dry-run dan exit code parsial/sukses pada --apply (3.7763ms)
+✔ configured CPU quota and pool must match actual backend settings (1.7066ms)
+✔ published ingress must match the configured loopback binding (0.3437ms)
+✔ transition monitoring is serial, reports failures, and stops before returning (92.1177ms)
+✔ transition failure still joins collection and propagates actuator error (17.0242ms)
+✔ storage preflight refuses impossible capacity and scales estimate with workload (7.1331ms)
+✔ single stress runs stay bounded and read-only without requiring a matrix (1.118ms)
+[P3] Verified flashsale-p3: backend-only scale to 3; --no-deps --no-recreate leaves PostgreSQL unchanged.
+✔ Docker operations reject P2 labels, wrong service and wrong network (7.5381ms)
+✔ scale-out command targets backend only and disables dependency recreation (23.1811ms)
+✔ database identity, role and pool budget are required (6.1553ms)
+✔ foreign volume is rejected before SQL access (1.6148ms)
+✔ reset requires explicit flag, valid run identity and paused control (1.8014ms)
+✔ graceful shutdown completes in-flight response before closing database and is idempotent (3270.0444ms)
+✔ management binds loopback and readiness becomes unavailable while draining (18.9625ms)
+✔ metrics reject duplicate identities, equal-count membership changes and collection overruns (2.0619ms)
+✔ missing VM CPU baseline, NaN CPU and unavailable readiness cannot drive decisions (1.0583ms)
+✔ Docker VM counters exclude guest double counting and distinguish first/reset CPU samples (0.9338ms)
+✔ generator process rates are based on PID and start time with explicit CPU denominators (0.6991ms)
+✔ scale out only after a continuous high-CPU window (3.4739ms)
+✔ scale in waits for hysteresis window and projects remaining capacity (0.5426ms)
+✔ bounds, fixed mode, host capacity and pool waits suppress unsafe actions (1.2173ms)
+✔ stale, missing or database-failed samples reset accumulated windows (0.3838ms)
+✔ sample gaps and cooldown prevent flapping (0.6176ms)
+✔ ambiguous key extraction accepts only the exact run namespace (3.2973ms)
+✔ lost response is reconciled as committed and explains DB order count (33.0435ms)
+✔ unexplained or foreign orders fail reconciliation (3.4745ms)
+✔ recovery adopts actual membership after interrupted scale-out instead of deleting new backend (24.4264ms)
+✔ recovery does not resurrect already removed victim after interrupted scale-in (13.2048ms)
+✔ recovery refuses membership beyond maximum without deleting containers (9.0952ms)
+✔ initial CPU baseline outside measurement does not invalidate later complete samples (46.3581ms)
+✔ invalid metrics inside measurement are rejected and calibration is excluded from comparison (40.2755ms)
+✔ report produces structured outputs and escaped standalone HTML from samples (64.5948ms)
+✔ sold-out results are excluded from capacity comparison instead of marked infra failures (28.6049ms)
+✔ lossless compressed raw samples preserve report counts and percentile (24.3237ms)
+✔ collector refuses overlapping samples rather than reusing in-flight data (15.3394ms)
+✔ calibration remains bounded, read-only and dry-run until explicitly executed (0.9336ms)
+✔ recovery waits for an interrupted terminating backend without resending signals or killing transactions (34.8975ms)
+✔ CPU evidence with a changed membership is discarded immediately before actuation (7.5621ms)
+[P3] Verified flashsale-p3: validate and reload Nginx aaaaaaaaaaaa with 1 ready backend(s).
+[P3] Verified flashsale-p3: validate and reload Nginx aaaaaaaaaaaa with 1 ready backend(s).
+[P3] Verified flashsale-p3: validate and reload Nginx aaaaaaaaaaaa with 1 ready backend(s).
+✔ routing rejects empty upstream and injected IP/generation (6.9306ms)
+✔ invalid candidate is never activated (3.7187ms)
+✔ routing validates before reload and persists only verified generation (17.1068ms)
+✔ activation failure restores previous Nginx configuration (3.4101ms)
+✔ scale-in removes only drained victim after routing and worker completion (25.0695ms)
+✔ drain timeout restores original routes without stopping victim (8.3014ms)
+✔ runner is dry-run by default and campaigns require explicit execution (4.7391ms)
+✔ pilot and final matrix counts and repetition order are reproducible (0.464ms)
+✔ report computes percentile from samples, not averages of quantiles (0.6192ms)
+✔ scale-out cannot accidentally use Compose to remove containers from an oversized inventory (6.9358ms)
+✔ lifecycle recovery and outer process timeout cover six-to-two policy/drain budgets (1.6614ms)
+✔ simulated sustained-low workload reaches min under worst-case drain/termination budgets within recovery window (1.4256ms)
+✔ shutdown waits for transaction-pool completion even with no active HTTP connection (73.2289ms)
+[P3] Verified flashsale-p3: gracefully stop and remove drained backend aaaaaaaaaaaa; no volumes removed.
+✔ zero HTTP requests does not allow removal while a transaction client is leased (523.5578ms)
+✔ interrupted scale-in restores routes without signaling a backend holding a transaction (8.8533ms)
+✔ routing failure and rollback failure never reach backend termination (10.1776ms)
+✔ graceful termination timeout leaves backend running without SIGKILL, stop or forced rm (2.9234ms)
+✔ explicit ledger ACK recovery verifies duplicate, independent lookup and fresh conservation snapshots (5.0026ms)
+✔ unapproved or incomplete ledger data fails before writes (0.7933ms)
+✔ a different payload cannot use an approved key (0.8259ms)
+✔ a duplicate response with a different ID fails closed (0.5213ms)
+✔ order lookup requires the exact original key (0.8321ms)
+✔ final SQL ACK audit rejects missing, duplicate and conflicting rows (0.3853ms)
+✔ ACK timing: before injection, shutdown window and after verified unavailability, present and missing, deduplicated by original key (6.2422ms)
+✔ unknown unavailability never asserts the primary was already stopped; legacy RPO and late loss remain separate (3.9692ms)
+✔ ledger distinguishes DB_UNAVAILABLE from unrelated HTTP 503 and preserves missing payload as unknown (7.9409ms)
+✔ Docker lifecycle: death event plus absence establishes unavailability after request, not command start (1.0423ms)
+✔ Docker lifecycle fails closed: no-death-evidence (0.6339ms)
+✔ Docker lifecycle fails closed: still-running (0.2665ms)
+✔ Docker lifecycle fails closed: inspect-denied (0.4619ms)
+✔ Docker lifecycle fails closed: foreign-event (0.9575ms)
+✔ ACK present in recovery requires matching user, product, quantity and unique key (8.5294ms)
+✔ old-primary-only ACK stays unresolved without approval; absent from both also stays unresolved (5.6067ms)
+✔ approved reconstruction uses original key once, prevents duplicates and verifies conservation; evidence preserves original loss (10.2524ms)
+✔ ledger-only replay requires explicit authorization and verifies stock conservation (10.5971ms)
+✔ SOLD_OUT requires explicit compensation and never loops; pending compensation is unresolved (11.4458ms)
+✔ journal failure prevents replay; malformed forensic provenance cannot authorize old-primary reconstruction (5.551ms)
+✔ 390 missing ACKs fail DR despite RPO 0.037 and successful ambiguous replay (0.7361ms)
+✔ 19 missing ACKs fail DR despite RPO 0.037 and successful ambiguous replay (0.1624ms)
+✔ 409 missing ACKs fail DR despite RPO 0.037 and successful ambiguous replay (0.125ms)
+✔ complete reconciliation can pass; pending compensation, missing replay evidence, restarted backend or bad roles fail (0.4925ms)
+✔ offline forensic review checks export hash, never contacts Docker/API, and refuses report overwrite (50.2235ms)
+✔ standalone approved reconciliation: approved, all infrastructure calls mocked (38.7145ms)
+✔ standalone approved reconciliation: original-volume-running, all infrastructure calls mocked (27.1956ms)
+✔ standalone approved reconciliation: wrong-confirmation, all infrastructure calls mocked (21.2486ms)
+✔ retention: missing-metadata cannot displace the last valid backup (44.8876ms)
+✔ retention: corrupt-metadata cannot displace the last valid backup (20.2096ms)
+✔ retention: incorrect-metadata-checksum cannot displace the last valid backup (51.5314ms)
+✔ retention: not-validated cannot displace the last valid backup (28.9298ms)
+✔ retention: invalid-size cannot displace the last valid backup (23.8169ms)
+✔ retention: missing-checksum cannot displace the last valid backup (30.0445ms)
+✔ retention: missing-dump cannot displace the last valid backup (20.4343ms)
+✔ retention: matching SHA and metadata still require a successful archive TOC (23.645ms)
+✔ retention: empty successful process output is not a valid archive TOC (19.5549ms)
+✔ retention: newest ten complete valid sets are retained and unrelated files remain (129.1358ms)
+✔ retention: active restore lock suspends the entire pruning operation (31.9454ms)
+✔ retention: malformed restore lock suspends the entire pruning operation (31.7777ms)
+✔ retention: unreadable restore lock suspends the entire pruning operation (31.7498ms)
+✔ owned locks: exclusivity and token prevent another owner with the same PID from releasing a lock (13.3704ms)
+✔ owned locks: malformed ownership data is never removed automatically (11.0469ms)
+✔ restore: active foreign lock is preserved and acquisition fails before database commands (12.7795ms)
+✔ restore: validation failure cleans up only its own restore and archive locks (45.64ms)
+✔ restore: owned locks are present through restore and cleaned after success (62.6154ms)
+✔ restore: owned locks are present through restore and cleaned after failure (67.9856ms)
+✔ archive coordination: restore in one process blocks backup in a second process (308.5008ms)
+✔ archive coordination: an active backup mutex blocks restore and retention, without lock stealing (20.8835ms)
+✔ backend survives read ECONNRESET, serves replica and recovers without restart (1068.5739ms)
+✔ backend survives Connection terminated unexpectedly, serves replica and recovers without restart (937.5502ms)
+✔ backend survives idle pooled client error, serves replica and recovers without restart (744.3214ms)
+✔ p4 backup: validasi identitas container menolak project / service / env yang salah (3.1513ms)
+✔ p4 backup: validasi database menolak database selain flashsale_p3 dan menolak standby (1.5703ms)
+✔ p4 backup: backup berhasil membuat file dump, checksum sha256 valid, dan metadata (40.7986ms)
+✔ p4 backup: backup gagal mempertahankan backup sebelumnya dan membersihkan file temporary (9.8629ms)
+✔ p4 backup: arsip korup ditolak oleh pg_restore --list dan tidak disimpan sebagai backup final (22.5269ms)
+✔ dr integration (mock): performRestore produksi memanggil pg_restore dengan opsi lengkap (--clean, --if-exists, dll) (41.3916ms)
+✔ dr integration (mock): verifyDatabaseRole produksi memvalidasi writer non-recovery dan menolak standby/mismatch (0.3419ms)
+✔ dr integration (mock): verifySingleWritablePrimary produksi memastikan tepat ada 1 primary writer dan 1 standby (0.7469ms)
+✔ dr integration (mock): verifyAllBusinessInvariants produksi menolak stok negatif dan pesanan ganda (0.4194ms)
+✔ dr integration (mock): performTrialRestore produksi menjalankan query DROP & CREATE terpisah dan memvalidasi baris (0.6285ms)
+✔ dr integration (mock): cleanupRecoveryVolumes produksi menolak keras menghapus volume primer asli (0.5387ms)
+✔ dr integration (mock): compareLedgerWithDatabase produksi menghitung RPO aktual dan memfilter error (1.6512ms)
+✔ dr integration (p4 env): docker-compose.p4-dr.yml tervalidasi dengan port terisolasi 8088, network p4-dr, dan volume recovery (0.762ms)
+✔ dr integration (p4 env): docker-compose.p4-dr.recovery.yml me-mount volume recovery bersih dan tidak me-mount volume primer asli (0.6396ms)
+✔ dr integration (p4 env): skrip k6 workload memuat handshake [K6_HANDSHAKE] dan opsi threshold disaster recovery (0.6522ms)
+✔ dr integration (p3 live baseline): inspeksi container live P3 memverifikasi isolasi label stack dan service running (1456.6592ms)
+✔ dr integration (p3 live baseline): validasi peran live primary berstatus writer non-recovery (in_recovery=f) (764.9521ms)
+✔ dr integration (p3 live baseline): validasi peran live replica berstatus standby recovery (in_recovery=t) (581.7347ms)
+✔ dr integration (p3 live baseline): validasi read-replica routing via Nginx mengembalikan HTTP 200 dan header X-Read-From: replica (278.9198ms)
+✔ dr integration (p3 live baseline): validasi backend live healthcheck mengembalikan status ok, db up, dan replica status (176.0043ms)
+✔ dr integration (p3 live baseline): validasi endpoint /stats live memastikan 9 invarian bisnis konsisten (0 stok negatif, 0 duplikasi) (213.7172ms)
+✔ p4 baseline: rejects only errors, sold out and false acknowledgements (1.9972ms)
+✔ p4 baseline: deterministically selects in-stock product and checks checkout before workload (0.5154ms)
+✔ p4 baseline: unhealthy replica, failed reads, sold-out dataset and DB_UNAVAILABLE abort (0.6535ms)
+✔ p4 orchestration: pre-T0 handshake or VU failure stops and drains workload (44.8154ms)
+✔ p4 orchestration: error-only ledger aborts before T0 and awaits shutdown (48.6873ms)
+✔ p4 orchestration: post-T0 nonzero exit remains a failure without throwing before recovery (0.4649ms)
+✔ p4 ingress: discovers two actual IPs, validates candidate before activating routing (2.0044ms)
+✔ p4 ingress: wrong project or unhealthy backend blocks all writes (1.1576ms)
+✔ p4 archive validation: streams binary input without copying or deleting container files (11.1152ms)
+✔ p4 preflight: validates P3 backup using verified P4 tool without accessing P3 container (17.8606ms)
+✔ p4 ledger: classifyOutcome mengklasifikasikan status dan body secara akurat (1.6349ms)
+✔ p4 ledger: recordTransaction mencatat transaksi sukses, duplikat, dan gagal dengan persistensi append-only (10.03ms)
+✔ p4 ledger: readLedger membaca record dan melewati baris kosong atau malformed tanpa crash (6.7926ms)
+✔ p4 ledger: compareLedgerWithDatabase menghitung matched, lost, dan RPO dalam detik secara deterministik (1.6755ms)
+✔ p4 ledger: attachLedgerStream mem-parse dan mencatat output stdout K6 secara streaming (10.6159ms)
+[2026-11-08T19:11:24.115Z] [SKIP] Tidak dapat memperoleh lock: Lock sedang dikuasai oleh proses PID 7777: Archive lock unavailable (.backup.lock): EEXIST: file already exists, open 'D:\Kuliah\SEM 5\Cloud Computing\flashsale\tmp-test-loop\.backup.lock'. Backup loop ditolak untuk mencegah proses bersamaan.
+===========================================================================
+[BACKUP-LOOP] Memulai PostgreSQL Backup Automation Loop (Interval: 1s)
+- Target Stack   : P3 (flashsale-p3-db-primary-1 -> flashsale_p3)
+- Direktori      : D:\Kuliah\SEM 5\Cloud Computing\flashsale\tmp-test-loop
+- Lock File      : D:\Kuliah\SEM 5\Cloud Computing\flashsale\tmp-test-loop\.backup.lock
+- Process PID    : 3333
+[BACKUP-LOOP] Tekan Ctrl+C untuk menghentikan proses secara aman.
+===========================================================================
+[2026-11-08T19:11:24.125Z] [START] Menjalankan backup otomatis #1 (PID: 3333)...
+[2026-11-08T19:11:24.125Z] [SUCCESS] Backup #1 selesai: mock_1.dump (0.10 KB, 5ms)
+✔ p4 loop: same-PID replacement token cannot be released by the previous owner (22.3561ms)
+✔ p4 loop: acquireLock secara atomik berhasil untuk proses pertama dan menolak proses kedua (EEXIST) (10.6799ms)
+✔ p4 loop: releaseLock hanya menghapus lock jika PID pemilik cocok dan menolak proses asing (5.4658ms)
+✔ p4 loop: startBackupLoop menolak proses kedua jika lock sudah aktif di awal (12.0413ms)
+[2026-11-08T19:11:25.136Z] [START] Menjalankan backup otomatis #2 (PID: 3333)...
+[2026-11-08T19:11:25.137Z] [SUCCESS] Backup #2 selesai: mock_2.dump (0.10 KB, 5ms)
+[BACKUP-LOOP] Membersihkan lock file...
+[BACKUP-LOOP] Lock file berhasil dibersihkan.
+[BACKUP-LOOP] Backup loop dihentikan secara normal.
+===========================================================================
+[BACKUP-LOOP] Memulai PostgreSQL Backup Automation Loop (Interval: 2s)
+- Target Stack   : P3 (flashsale-p3-db-primary-1 -> flashsale_p3)
+- Direktori      : D:\Kuliah\SEM 5\Cloud Computing\flashsale\tmp-test-loop
+- Lock File      : D:\Kuliah\SEM 5\Cloud Computing\flashsale\tmp-test-loop\.backup.lock
+- Process PID    : 4441
+[BACKUP-LOOP] Tekan Ctrl+C untuk menghentikan proses secara aman.
+===========================================================================
+[2026-11-08T19:11:25.146Z] [START] Menjalankan backup otomatis #1 (PID: 4441)...
+[2026-11-08T19:11:25.146Z] [SUCCESS] Backup #1 selesai: proc1.dump (0.10 KB, 10ms)
+[2026-11-08T19:11:25.150Z] [SKIP] Tidak dapat memperoleh lock: Lock sedang dikuasai oleh proses PID 4441: Archive lock unavailable (.backup.lock): EEXIST: file already exists, open 'D:\Kuliah\SEM 5\Cloud Computing\flashsale\tmp-test-loop\.backup.lock'. Backup loop ditolak untuk mencegah proses bersamaan.
+✔ p4 loop: lock dipertahankan selama loop berjalan (termasuk saat menunggu interval) dan dilepas saat loop selesai (1021.8757ms)
+[2026-11-08T19:11:27.153Z] [START] Menjalankan backup otomatis #2 (PID: 4441)...
+[2026-11-08T19:11:27.153Z] [SUCCESS] Backup #2 selesai: proc1.dump (0.10 KB, 10ms)
+[BACKUP-LOOP] Membersihkan lock file...
+[BACKUP-LOOP] Lock file berhasil dibersihkan.
+[BACKUP-LOOP] Backup loop dihentikan secara normal.
+✔ p4 loop: proses kedua ditolak saat proses pertama sedang tidur menunggu interval (mencegah eksekusi paralel) (2013.2187ms)
+✔ p4 orchestrate: assertDrIsolation menolak container milik stack P3 atau P2 untuk mencegah kontaminasi (1.8884ms)
+✔ p4 orchestrate: planDisasterRecovery default adalah dry-run dan melindungi stack P3/P2 (13.5515ms)
+✔ p4 historical clone: plan remains read-only and clone execution is retired (13.0585ms)
+✔ official P4: explicit ledger replay resolves ACKs with retries and final independent SQL audit (630.6194ms)
+✔ official P4: immutable container and volume confirmations are both mandatory (4.107ms)
+✔ official P4: T0 is second consecutive health 503, with reset after a healthy sample (7.7501ms)
+✔ official P4: unavailable ingress alone is not a detected database incident (1.2898ms)
+✔ official P4: RPO uses newest lost pre-disaster ACK, preserving loss before replay (1.3148ms)
+✔ official P4: error-only ledger does not establish RPO zero (0.4232ms)
+✔ official P4: backup candidates require completed metadata, matching checksum and newest snapshot (58.9656ms)
+✔ P4 backup: standalone and scheduled jobs share an exclusive job lock (10.097ms)
+✔ P4 backup: checksum-valid but archive-invalid candidates cannot evict the last usable archive (40.9405ms)
+✔ P3 recovery: manifest preserves project identity and cannot substitute P1/P2 volumes (12.0418ms)
+✔ P3 recovery: Compose reuses .env.p3 and adds only the verified recovery overlay (9.5584ms)
+✔ official P4: existing recovery volumes are refused without deletion (0.4492ms)
+✔ official P4: post-T0 nonzero workload exit still restores primary and standby, with failed final result (344.6585ms)
+✔ official P4: absent confirmation performs no destructive/control/database operations (3.0612ms)
+✔ official P4: pre-T0 readiness failure drains workload, restores control and never deletes primary (50.3113ms)
+✔ official P4: failed final audit leaves controller paused and never records T1 (393.7604ms)
+✔ official P4: complete mocked recovery records T1 only after the full audit and retains old volumes (371.1292ms)
+✔ official P4: 390-pre-injection missing ACKs block T1, manifest validation and controller resume even when K6 succeeds (982.8334ms)
+✔ official P4: 19-late missing ACKs block T1, manifest validation and controller resume even when K6 succeeds (369.9806ms)
+✔ official P4: dry-run against stopped P3 reports blocker without starting services (14.1764ms)
+✔ P0: hard crash immediately after simulated primary deletion leaves a valid manifest and paused controller (229.0037ms)
+✔ P0: before-volume-creation exception preserves recovery intent, original volume identity and pause (113.6107ms)
+✔ P0: volume-creation exception preserves recovery intent, original volume identity and pause (116.2644ms)
+✔ P0: restore exception preserves recovery intent, original volume identity and pause (154.2239ms)
+✔ P3/P4 coordination: existing operation finishes before injection and no resume/scale starts during recovery (353.1959ms)
+[P3] Verified flashsale-p3: backend-only scale to 3; --no-deps --no-recreate leaves PostgreSQL unchanged.
+✔ P3 coordination: controller startup recovery waits for the shared operation mutex (73.8997ms)
+✔ P3 coordination: direct benchmark scale actuators cannot bypass an existing DR operation (10.8576ms)
+✔ P3 coordination: nested actuator calls reuse only the owning async operation lease (5.9891ms)
+✔ DR console summary stays bounded while preserving failed gates and evidence paths (14.5035ms)
+✔ DR dry-run retains target confirmations and blockers (0.1927ms)
+✔ successful DR summary preserves success without requesting ACK remediation (0.2648ms)
+✔ p4 restore: default adalah dry-run dan tidak memodifikasi database (33.196ms)
+✔ p4 restore: menolak restore jika checksum SHA-256 tidak cocok (file dump termodifikasi) (9.7877ms)
+✔ p4 restore: menolak jika container target memiliki identitas salah (6.1209ms)
+✔ p4 restore: menolak jika database target bukan flashsale_p3 (mencegah kontaminasi P2) (6.3859ms)
+✔ p4 restore: menolak jika database target berada dalam mode standby recovery (6.1669ms)
+✔ p4 restore: menolak restore jika query pemutusan koneksi aktif gagal (52.9363ms)
+✔ p4 restore: menolak restore jika masih terdapat koneksi aktif pasca-terminasi (31.7846ms)
+✔ p4 restore: menolak status SUCCESS jika query verifikasi pasca-restore gagal (26.4434ms)
+✔ p4 restore: menolak status SUCCESS jika query verifikasi mengembalikan respons kosong atau malformed (42.2895ms)
+✔ p4 restore: eksekusi dengan --execute menjalankan pg_restore dengan opsi lengkap dan verifikasi tabel valid (34.6531ms)
+✔ p4 common: parseStrictNonNegativeInt memvalidasi integer non-negatif secara ketat (fail-closed) (0.3296ms)
+✔ p4 common: getActiveConnectionCount menerapkan strict parsing dan menolak output tidak valid (0.3194ms)
+✔ p4 common: terminateActiveConnections hanya menghitung koneksi yang berhasil diputus dan menolak query gagal (0.442ms)
+✔ p4 restore: findLatestBackup memilih backup terbaru dengan checksum dan struktur TOC valid (10.9003ms)
+✔ p4 restore: backup terbaru tanpa checksum .sha256 dilewati dan backup sebelumnya yang valid dipilih (8.1654ms)
+✔ p4 restore: backup terbaru dengan checksum mismatch dilewati dan backup sebelumnya yang valid dipilih (17.5455ms)
+✔ p4 restore: backup terbaru dengan arsip korup (TOC gagal) dilewati dan backup sebelumnya yang valid dipilih (110.07ms)
+✔ p4 restore: jika seluruh backup tidak valid, pencarian berhenti dengan pesan error yang jelas (3.5002ms)
+✔ p4 restore: seluruh file backup lama terlindungi dan tidak dihapus selama proses pencarian validitas (12.4441ms)
+✔ p4 retention: mempertahankan seluruh backup jika jumlah backup valid <= 10 (69.9359ms)
+✔ p4 retention: menghapus backup tertua saat jumlah backup melebihi batas 10 (113.3618ms)
+✔ p4 retention: tidak pernah menghapus backup valid terakhir (15.2402ms)
+✔ p4 retention: tidak menghapus backup yang sedang digunakan proses restore (41.8644ms)
+✔ p4 retention: tidak menghapus file temporary (.tmp) atau file tidak terkait (128.9537ms)
+✔ actual K6 script rejects 500 and stops that VU from repeating writes (26.8148ms)
+✔ actual K6 script rejects 502 and stops that VU from repeating writes (3.8518ms)
+✔ actual K6 script rejects 504 and stops that VU from repeating writes (5.6648ms)
+✔ actual K6 script accepts business responses and classified outage candidates, rejects unrelated 503 (12.9443ms)
+✔ host policy accepts transport/DB outage only after the explicit marker; gateway/internal errors always fail (0.512ms)
+✔ programmatic restore blocks no-manifest before any DB or container mutation (51.865ms)
+✔ programmatic restore blocks validated before any DB or container mutation (21.8308ms)
+✔ programmatic restore blocks malformed before any DB or container mutation (21.1553ms)
+✔ programmatic restore blocks unpaused before any DB or container mutation (20.2148ms)
+✔ programmatic restore blocks no-confirmation before any DB or container mutation (21.5091ms)
+✔ programmatic restore blocks wrong-id before any DB or container mutation (62.0848ms)
+✔ programmatic restore blocks original-primary before any DB or container mutation (28.3783ms)
+✔ programmatic restore blocks original-replica before any DB or container mutation (26.3015ms)
+✔ programmatic restore blocks foreign-project before any DB or container mutation (45.2717ms)
+✔ programmatic restore blocks operation-busy before any DB or container mutation (23.2623ms)
+✔ transactional Python regressions (all HTTP/Docker/DB operations mocked) (1670.1018ms)
+[P4 K6 WORKLOAD] Memulai K6 (100 VUs, durasi 60s, target: http://127.0.0.1:8080)...
+[P4 K6 WORKLOAD] Memulai K6 (100 VUs, durasi 60s, target: http://127.0.0.1:8080)...
+✔ p4 workload: handshake via stdout and ordinary stderr is not fatal (569.7524ms)
+[P4 K6 WORKLOAD] Memulai K6 (100 VUs, durasi 60s, target: http://127.0.0.1:8080)...
+✔ p4 workload: ledger via stdout, fragmented lines, multiple VUs and final unterminated line (483.1009ms)
+[P4 K6 WORKLOAD] Memulai K6 (100 VUs, durasi 60s, target: http://127.0.0.1:8080)...
+✔ p4 workload: handshake via stderr and ordinary stderr is not fatal (473.6538ms)
+[P4 K6 WORKLOAD] Memulai K6 (100 VUs, durasi 60s, target: http://127.0.0.1:8080)...
+✔ p4 workload: ledger via stderr, fragmented lines, multiple VUs and final unterminated line (462.7479ms)
+[P4 K6 WORKLOAD] Memulai K6 (100 VUs, durasi 60s, target: http://127.0.0.1:8080)...
+✔ p4 workload: split handshake and 100 distinct VUs detected while child is alive (614.5113ms)
+[P4 K6 WORKLOAD] Memulai K6 (100 VUs, durasi 60s, target: http://127.0.0.1:8080)...
+✔ p4 workload: identical ledger event on both pipes is persisted once (103.6623ms)
+[P4 K6 WORKLOAD] Memulai K6 (100 VUs, durasi 60s, target: http://127.0.0.1:8080)...
+✔ p4 workload: real ledger write failure stops child and is surfaced (81.5242ms)
+[P4 K6 WORKLOAD] Memulai K6 (100 VUs, durasi 60s, target: http://127.0.0.1:8080)...
+✔ p4 workload: premature exit before handshake includes drained diagnostics (91.2507ms)
+[P4 K6 WORKLOAD] Memulai K6 (100 VUs, durasi 60s, target: http://127.0.0.1:8080)...
+✔ p4 workload: exit zero without handshake is a startup failure (107.3698ms)
+[P4 K6 WORKLOAD] Memulai K6 (100 VUs, durasi 60s, target: http://127.0.0.1:8080)...
+✔ p4 workload: non-zero exit after handshake stays a workload failure (381.3187ms)
+[P4 K6 WORKLOAD] Memulai K6 (100 VUs, durasi 60s, target: http://127.0.0.1:8080)...
+✔ p4 workload: waitForHandshake timeout stops and awaits child (140.4975ms)
+[P4 K6 WORKLOAD] Memulai K6 (100 VUs, durasi 60s, target: http://127.0.0.1:8080)...
+✔ p4 workload: waitForObservedVUs timeout stops and awaits child (123.3356ms)
+[P4 K6 WORKLOAD] Memulai K6 (100 VUs, durasi 60s, target: http://127.0.0.1:8080)...
+✔ p4 workload: spawn error resolves failed result without unhandled rejection (34.1917ms)
+✔ p4 ledger: parses K6 escaped logfmt and JSON console messages (1.0927ms)
+[P4 K6 WORKLOAD] Memulai K6 (100 VUs, durasi 60s, target: http://127.0.0.1:8080)...
+✔ p4 workload: abnormal exit retains previously persisted ledger and separate timestamps (72.3247ms)
+[P4 K6 WORKLOAD] Memulai K6 (100 VUs, durasi 60s, target: http://127.0.0.1:8080)...
+✔ p4 workload: child exit zero cannot conceal unexpected HTTP 500 (63.3179ms)
+[P4 K6 WORKLOAD] Memulai K6 (100 VUs, durasi 60s, target: http://127.0.0.1:8080)...
+✔ p4 workload: child exit zero cannot conceal unexpected HTTP 502 (71.2728ms)
+[P4 K6 WORKLOAD] Memulai K6 (100 VUs, durasi 60s, target: http://127.0.0.1:8080)...
+✔ p4 workload: child exit zero cannot conceal unexpected HTTP 504 (69.8836ms)
+[P4 K6 WORKLOAD] Memulai K6 (100 VUs, durasi 60s, target: http://127.0.0.1:8080)...
+✔ p4 workload: child exit zero cannot conceal unexpected HTTP 503 (83.5535ms)
+[P4 K6 WORKLOAD] Memulai K6 (100 VUs, durasi 60s, target: http://127.0.0.1:8080)...
+✔ p4 workload: 0 before injection is unexpected even if K6 exits zero (98.9991ms)
+[P4 K6 WORKLOAD] Memulai K6 (100 VUs, durasi 60s, target: http://127.0.0.1:8080)...
+✔ p4 workload: classified 0 after injection is an accepted outage response (83.5164ms)
+[P4 K6 WORKLOAD] Memulai K6 (100 VUs, durasi 60s, target: http://127.0.0.1:8080)...
+✔ p4 workload: 503 before injection is unexpected even if K6 exits zero (72.4454ms)
+✔ p4 workload: classified 503 after injection is an accepted outage response (66.5441ms)
+ℹ tests 271
+ℹ suites 0
+ℹ pass 271
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5792.0266

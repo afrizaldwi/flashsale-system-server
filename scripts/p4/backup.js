@@ -11,6 +11,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { execSync } = require("node:child_process");
+const { acquireArchiveLock } = require("./locks");
 const {
   P3_CONFIG,
   sh,
@@ -18,20 +19,27 @@ const {
   verifyDatabaseRole,
   calculateFileSha256,
   validateArchiveTOC,
+  applyRetentionPolicy,
 } = require("./common");
 
 function formatTimestamp(d = new Date()) {
   const pad = (n) => String(n).padStart(2, "0");
-  const y = d.getFullYear();
-  const m = pad(d.getMonth() + 1);
-  const day = pad(d.getDate());
-  const h = pad(d.getHours());
-  const min = pad(d.getMinutes());
-  const s = pad(d.getSeconds());
+  const y = d.getUTCFullYear();
+  const m = pad(d.getUTCMonth() + 1);
+  const day = pad(d.getUTCDate());
+  const h = pad(d.getUTCHours());
+  const min = pad(d.getUTCMinutes());
+  const s = pad(d.getUTCSeconds());
   return `${y}${m}${day}_${h}${min}${s}`;
 }
 
 async function performBackup(options = {}, execFn = execSync) {
+  const archiveLock = acquireArchiveLock(options.backupDir || P3_CONFIG.backupDir);
+  try { return await performBackupUnlocked({ ...options, archiveLock }, execFn); }
+  finally { if (!archiveLock.release()) throw new Error("Backup archive lock ownership changed or cleanup failed"); }
+}
+
+async function performBackupUnlocked(options = {}, execFn = execSync) {
   const cfg = {
     container: options.container || P3_CONFIG.container,
     dbName: options.dbName || P3_CONFIG.dbName,
@@ -77,6 +85,9 @@ async function performBackup(options = {}, execFn = execSync) {
   const sha256HostPath = `${finalHostPath}.sha256`;
   const metaHostPath = `${finalHostPath}.meta.json`;
   const logHostPath = path.join(cfg.backupDir, "backup.log");
+  if ([finalHostPath, sha256HostPath, metaHostPath].some((file) => fs.existsSync(file))) {
+    throw new Error("Backup filename already exists; refusing to overwrite an archive");
+  }
 
   const containerTempDump = `/tmp/backup_${timestampStr}_${Math.random().toString(36).slice(2, 8)}.dump`;
 
@@ -133,6 +144,8 @@ async function performBackup(options = {}, execFn = execSync) {
       tocEntries: tocCheck.tocEntriesCount,
       format: "CUSTOM (-Fc)",
       startTime: startTime.toISOString(),
+      snapshotStartedAt: startTime.toISOString(),
+      snapshotConvention: "conservative lower bound before pg_dump; not an exported exact snapshot timestamp",
       endTime: endTime.toISOString(),
       durationMs: durationMs,
       status: "VALIDATED",
@@ -142,6 +155,17 @@ async function performBackup(options = {}, execFn = execSync) {
     // 11. Catat ke backup.log
     const logLine = `[${endTime.toISOString()}] SUCCESS file=${dumpBaseName} size=${stats.size}B duration=${durationMs}ms sha256=${sha256.slice(0, 12)}...\n`;
     fs.appendFileSync(logHostPath, logLine, "utf8");
+
+    // 12. Terapkan kebijakan retensi backup (pertahankan minimal 10 backup valid)
+    const retentionCount = Number(
+      options.retentionCount || process.env.BACKUP_RETENTION_COUNT || 10,
+    );
+    const retentionResult = applyRetentionPolicy(cfg.backupDir, retentionCount, {
+      logFile: logHostPath,
+      archiveLock: options.archiveLock,
+      validateArchive: (file) => validateArchiveTOC(cfg.container, file, execFn).ok,
+    });
+    metadata.retention = retentionResult;
 
     return metadata;
   } catch (err) {
@@ -202,4 +226,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { performBackup, formatTimestamp };
+module.exports = { performBackup, formatTimestamp, applyRetentionPolicy };

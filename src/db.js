@@ -1,8 +1,10 @@
 "use strict";
 require("dotenv").config();
 const { Pool } = require("pg");
+const { ResilientClient } = require("./db-client");
 
 const common = {
+  Client: ResilientClient,
   user: process.env.DB_USER || "postgres",
   password: process.env.DB_PASSWORD || "",
   database: process.env.DB_NAME || "flashsale",
@@ -103,7 +105,7 @@ const readinessPool =
         application_name: "p3-readiness",
       })
     : null;
-readinessPool?.on("error", () => {});
+readinessPool?.on("error", (error) => console.error("[DB:readiness]", error.message));
 async function readiness() {
   const result = await (readinessPool || primary).query(
     "SELECT NOT pg_is_in_recovery() AS ready",

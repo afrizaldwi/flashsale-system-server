@@ -2,11 +2,13 @@
 const path = require("node:path");
 const { sleep, readJson, lock } = require("./util");
 const { perProduct } = require("../../src/queries");
+const { databaseVolume } = require("./recovery");
 async function jsonSQL(docker, service, sql) {
   return JSON.parse(await docker.sql(service, sql));
 }
-async function assertIsolation(docker) {
-  for (const service of ["db-primary", "db-replica"]) {
+async function assertIsolation(docker, services = ["db-primary", "db-replica"]) {
+  if (!services.length || services.some((service) => !["db-primary", "db-replica"].includes(service))) throw new Error("Invalid P3 database identity scope");
+  for (const service of services) {
     const containers = await docker.list(service);
     if (containers.length !== 1)
       throw new Error(`Invalid ${service} membership`);
@@ -17,7 +19,7 @@ async function assertIsolation(docker) {
     );
     if (
       mount?.Type !== "volume" ||
-      mount.Name !== `${docker.c.project}_${suffix}`
+      mount.Name !== databaseVolume(docker.c, suffix)
     )
       throw new Error("Refusing foreign database volume");
     const data = await jsonSQL(

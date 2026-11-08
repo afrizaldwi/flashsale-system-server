@@ -239,44 +239,23 @@ function validateArchiveTOC(containerName, dumpPath, execFn = execSync) {
     return { ok: false, error: `File dump lokal tidak ditemukan: ${dumpPath}` };
   }
 
-  const tempContainerFile = `/tmp/val_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.dump`;
-
-  // 1. Copy ke container
-  const cpRes = sh(
-    `docker cp "${dumpPath}" ${containerName}:${tempContainerFile}`,
-    execFn,
-  );
-  if (!cpRes.ok) {
-    return {
-      ok: false,
-      error: `Gagal menyalin dump ke container untuk validasi TOC: ${cpRes.stderr}`,
-    };
-  }
-
   try {
-    // 2. pg_restore --list
-    const listRes = sh(
-      `docker exec ${containerName} pg_restore --list ${tempContainerFile}`,
-      execFn,
-    );
-    if (!listRes.ok) {
-      return {
-        ok: false,
-        error: `pg_restore --list gagal memvalidasi arsip: ${listRes.stderr || listRes.stdout}`,
-      };
-    }
-
-    const lines = listRes.stdout
+    // Listing an archive must not copy files into the protected baseline stack.
+    const stdout = execFn(`docker exec -i ${containerName} pg_restore --list`, {
+      input: fs.readFileSync(dumpPath), encoding: "utf8",
+      stdio: ["pipe", "pipe", "pipe"], timeout: 30000,
+    }).toString();
+    const lines = stdout
       .split("\n")
       .filter((l) => l.trim().length > 0 && !l.startsWith(";"));
     return {
-      ok: true,
+      ok: lines.length > 0,
       tocEntriesCount: lines.length,
-      rawHeader: listRes.stdout.slice(0, 300),
+      rawHeader: stdout.slice(0, 300),
+      ...(lines.length ? {} : { error: "pg_restore --list returned an empty archive TOC" }),
     };
-  } finally {
-    // 3. Bersihkan file temp di container
-    sh(`docker exec ${containerName} rm -f ${tempContainerFile}`, execFn);
+  } catch (err) {
+    return { ok: false, error: `pg_restore --list gagal memvalidasi arsip: ${(err.stderr || err.message).toString()}` };
   }
 }
 
@@ -362,6 +341,92 @@ function terminateActiveConnections(
   return { ok: true, count, error: null };
 }
 
+function safeUnlinkSync(filePath) {
+  if (!fs.existsSync(filePath)) return;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    try {
+      fs.unlinkSync(filePath);
+      return;
+    } catch (err) {
+      if ((err.code === "EBUSY" || err.code === "EPERM") && attempt < 9) {
+        const waitTill = Date.now() + 50;
+        while (Date.now() < waitTill) {}
+      } else {
+        throw err;
+      }
+    }
+  }
+}
+
+/**
+ * Menerapkan kebijakan retensi backup:
+ * - Mempertahankan hingga keepCount (default 10) backup valid terbaru (retains up to 10 valid backups).
+ * - Menghapus backup tertua ketika jumlah backup valid melebihi batas retensi (> keepCount).
+ * - Tidak pernah menghapus backup valid terakhir (bahkan jika keepCount diset rendah).
+ * - Suspend seluruh pruning bila restore lock ada, rusak, atau tidak terbaca.
+ * - Set lengkap dan metadata VALIDATED, checksum serta TOC wajib valid.
+ * - Mutex arsip yang sama menyinkronkan backup, restore, dan retention.
+ * - Mencatat setiap penghapusan file ke logFile.
+ * - Tidak pernah menghapus file temporary (.tmp) atau file yang tidak terkait (.log, .lock, dll).
+ */
+function applyRetentionPolicy(backupDir, keepCount = 10, options = {}) {
+  const { acquireArchiveLock, assertArchiveLock, restoreLockPresent } = require("./locks");
+  if (!fs.existsSync(backupDir)) return { pruned: [], kept: [] };
+  const files = () => fs.readdirSync(backupDir).filter((f) => /^flashsale_p3_[a-zA-Z0-9_-]+\.dump$/.test(f));
+  const suspended = (reason) => ({ pruned: [], kept: files(), suspended: true, reason });
+  // Even an unreadable, malformed, or directory-shaped lock suspends ALL pruning.
+  if (restoreLockPresent(backupDir)) return suspended("Restore lock present or unreadable");
+  let lease = options.archiveLock;
+  let acquired = false;
+  try {
+    if (!lease) { lease = acquireArchiveLock(backupDir); acquired = true; }
+    assertArchiveLock(backupDir, lease);
+  } catch (error) { return suspended(error.message); }
+  try {
+    const parsed = Number(keepCount);
+    const minKeep = Number.isInteger(parsed) ? Math.min(10, Math.max(1, parsed)) : 10;
+    const logFile = options.logFile || path.join(backupDir, "backup.log");
+    const valid = [];
+    const validateArchive = options.validateArchive || ((file) => validateArchiveTOC(options.container || P3_CONFIG.container, file, options.execFn).ok);
+    for (const file of files()) {
+      const dumpPath = path.join(backupDir, file);
+      const shaPath = `${dumpPath}.sha256`, metaPath = `${dumpPath}.meta.json`;
+      let meta;
+      try {
+        if (![dumpPath, shaPath, metaPath].every((f) => fs.lstatSync(f).isFile())) continue;
+        meta = JSON.parse(fs.readFileSync(metaPath, "utf8"));
+        const checksum = verifyFileChecksum(dumpPath, shaPath);
+        if (!checksum.ok || meta?.status !== "VALIDATED" || meta.database !== "flashsale_p3" ||
+            meta.file !== file || meta.sha256 !== checksum.actual ||
+            !Number.isSafeInteger(meta.sizeBytes) || meta.sizeBytes <= 0 || meta.sizeBytes !== fs.statSync(dumpPath).size ||
+            typeof meta.startTime !== "string" || typeof meta.endTime !== "string" ||
+            !Number.isFinite(Date.parse(meta.startTime)) || !Number.isFinite(Date.parse(meta.endTime)) ||
+            Date.parse(meta.endTime) < Date.parse(meta.startTime) ||
+            !Number.isFinite(meta.durationMs) || meta.durationMs < 0 ||
+            !Number.isInteger(meta.tocEntries) || meta.tocEntries < 1 || validateArchive(dumpPath) !== true) continue;
+      } catch { continue; }
+      valid.push({ file, dumpPath, shaPath, metaPath, time: Date.parse(meta.startTime) });
+    }
+    valid.sort((a, b) => b.time - a.time || b.file.localeCompare(a.file));
+    const kept = valid.slice(0, minKeep).map((v) => v.file), pruned = [];
+    for (const candidate of valid.slice(minKeep)) {
+      assertArchiveLock(backupDir, lease);
+      if (restoreLockPresent(backupDir)) return { pruned, kept: files(), suspended: true, reason: "Restore lock appeared; pruning suspended" };
+      if (options.activeRestoreFile === candidate.file) { kept.push(candidate.file); continue; }
+      // Windows-safe retries are retained. A valid replacement set is kept first.
+      try {
+        safeUnlinkSync(candidate.dumpPath);
+        safeUnlinkSync(candidate.shaPath);
+        safeUnlinkSync(candidate.metaPath);
+        pruned.push({ file: candidate.file, reason: `Exceeds retention limit (${minKeep})` });
+        fs.appendFileSync(logFile, `[${new Date().toISOString()}] RETENTION_PRUNE file=${candidate.file}\n`, "utf8");
+      } catch (error) { throw new Error(`Retention failed for ${candidate.file}: ${error.message}`); }
+    }
+    return { pruned, kept };
+  } finally {
+    if (acquired && !lease.release()) throw new Error("Retention archive lock ownership changed or cleanup failed");
+  }
+}
 module.exports = {
   P3_CONFIG,
   sh,
@@ -373,4 +438,5 @@ module.exports = {
   parseStrictNonNegativeInt,
   getActiveConnectionCount,
   terminateActiveConnections,
+  applyRetentionPolicy,
 };

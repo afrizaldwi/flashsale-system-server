@@ -1,0 +1,71 @@
+{
+  "description": "Selected experimental evidence for P4 report preparation. Raw artifacts remain local; no database dumps included.",
+  "runs": {
+    "27f60e05265e": {
+      "originalReportSha256": "f9201c66af3d25710d6c6f132662447bd8d72b18df2d77c10a5b5fc084d9ff46",
+      "files": {
+        "transactions.jsonl": {
+          "originalSha256": "bc83542446ec226f0f7f830ed289f630ec8288cbf85d1345d7d606caa1b50080",
+          "exportedSha256": "bc83542446ec226f0f7f830ed289f630ec8288cbf85d1345d7d606caa1b50080",
+          "bytes": 173522
+        },
+        "k6-summary.json": {
+          "originalSha256": "c6e438ed93000e7d7625dd02897fb961286c2024fe21bcacdd3f44ae19417cad",
+          "exportedSha256": "c6e438ed93000e7d7625dd02897fb961286c2024fe21bcacdd3f44ae19417cad",
+          "bytes": 3805
+        },
+        "acknowledgement-reconciliation.jsonl": {
+          "originalSha256": "ccff084e4168049dd2f216d3826dcb9b6a33b4a60ae1f7f199092fd217373263",
+          "exportedSha256": "ccff084e4168049dd2f216d3826dcb9b6a33b4a60ae1f7f199092fd217373263",
+          "bytes": 1491660
+        },
+        "final-acknowledged-orders.json": {
+          "originalSha256": "9f9fd50ccb2a552df6a6caa323f540ffd5778a900041d75e29921d59bc1b5d20",
+          "exportedSha256": "9f9fd50ccb2a552df6a6caa323f540ffd5778a900041d75e29921d59bc1b5d20",
+          "bytes": 100940
+        },
+        "report.json": {
+          "exportedSha256": "d088bce4b18751c10a61b0e90c55488856584b9ca96b1c5039c92dabf644e22f",
+          "bytes": 2733949
+        },
+        "summary.json": {
+          "exportedSha256": "a49854bced4c05964c7cbbc30f75c74aa86f9c0c1f228abdfd62839fd9857c01",
+          "bytes": 5488
+        }
+      }
+    },
+    "bfe0f3b7c035": {
+      "originalReportSha256": "14e6a19c075adbfb7673a652697c690e7ac3a29441b4620adc6c6b52ace9a287",
+      "files": {
+        "transactions.jsonl": {
+          "originalSha256": "6677828d83226d2b37c815a0aa1af0bc791b52ad1a22b18838fe26c0b2147719",
+          "exportedSha256": "6677828d83226d2b37c815a0aa1af0bc791b52ad1a22b18838fe26c0b2147719",
+          "bytes": 137368
+        },
+        "k6-summary.json": {
+          "originalSha256": "9567e832aa44edc6745296ccd7d56ea3b0f30555f82cdcc9050b2d5da623bb31",
+          "exportedSha256": "9567e832aa44edc6745296ccd7d56ea3b0f30555f82cdcc9050b2d5da623bb31",
+          "bytes": 3859
+        },
+        "acknowledgement-reconciliation.jsonl": {
+          "originalSha256": "20d275456ee3e37ba7c46ce36e7904e3734996311f2ff129742a090ba89582c6",
+          "exportedSha256": "20d275456ee3e37ba7c46ce36e7904e3734996311f2ff129742a090ba89582c6",
+          "bytes": 1021154
+        },
+        "final-acknowledged-orders.json": {
+          "originalSha256": "1d903b23be8b1e40bab4a11e6ea3af1e0d8d59c16a18514908df576bcce9506c",
+          "exportedSha256": "1d903b23be8b1e40bab4a11e6ea3af1e0d8d59c16a18514908df576bcce9506c",
+          "bytes": 79693
+        },
+        "report.json": {
+          "exportedSha256": "feee09e1a932dc3d15f6a764828daeee5aaf4e3bf58e9be9348927fdccaed21e",
+          "bytes": 1999154
+        },
+        "summary.json": {
+          "exportedSha256": "38cf6042cbcf60a30f5af9a530b1be53983fc66101551961c81c609553ddb65c",
+          "bytes": 5489
+        }
+      }
+    }
+  }
+}

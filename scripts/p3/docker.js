@@ -1,5 +1,6 @@
 "use strict";
-const { execute, sleep } = require("./util");
+const { execute, sleep, withOperationLock } = require("./util");
+const { recoveryState, databaseVolume, assertRecoveryComplete } = require("./recovery");
 class Docker {
   constructor(config, run = execute) {
     this.c = config;
@@ -13,6 +14,13 @@ class Docker {
     // Compose shell variables take precedence over --env-file; use only this P3 file's values.
     for (const key of Object.keys(env))
       if (key.startsWith("P3_") || key.startsWith("COMPOSE_")) delete env[key];
+    const recovery = recoveryState(this.c);
+    delete env.P4_PRIMARY_RECOVERY_VOLUME;
+    delete env.P4_REPLICA_RECOVERY_VOLUME;
+    if (recovery) {
+      env.P4_PRIMARY_RECOVERY_VOLUME = recovery.primaryVolume;
+      env.P4_REPLICA_RECOVERY_VOLUME = recovery.replicaVolume;
+    }
     return this.command(
       [
         "compose",
@@ -22,6 +30,7 @@ class Docker {
         this.c.envFile,
         "-f",
         "docker-compose.p3.yml",
+        ...(recovery ? ["-f", "docker-compose.p4-recovery.yml"] : []),
         ...args,
       ],
       { ...options, env },
@@ -87,7 +96,9 @@ class Docker {
       this.assertContainer(c, service),
     );
   }
-  async preflight() {
+  async preflight({ allowIncompleteRecovery = false } = {}) {
+    if (recoveryState(this.c)?.phase === "recovering" && !allowIncompleteRecovery)
+      throw new Error("Incomplete P4 recovery: keep P3 paused and follow the incident report before starting or scaling services");
     const model = JSON.parse(
       await this.compose(["config", "--format", "json"]),
     );
@@ -115,7 +126,7 @@ class Docker {
       ),
     );
     for (const suffix of ["primary", "replica"]) {
-      const name = `${this.c.project}_${suffix}`;
+      const name = databaseVolume(this.c, suffix);
       if (volumes.some((v) => v.Name === name)) {
         const [volume] = JSON.parse(
           await this.command(["volume", "inspect", name]),
@@ -126,10 +137,10 @@ class Docker {
         )
           throw new Error(`Foreign volume: ${name}`);
       }
-      if (
-        model.volumes[suffix]?.name !== name ||
-        model.volumes[suffix]?.external
-      )
+      const key = recoveryState(this.c) ? `p4-${suffix}-recovery` : suffix;
+      const dataMount = model.services[`db-${suffix}`].volumes?.find((v) => v.target === "/var/lib/postgresql/data");
+      if (model.volumes[key]?.name !== name || model.volumes[key]?.external ||
+          !dataMount || dataMount.type !== "volume" || dataMount.source !== key)
         throw new Error("Unsafe volume mapping");
     }
     await this.list();
@@ -165,6 +176,9 @@ class Docker {
     );
   }
   async scaleOut(target) {
+    return withOperationLock(this.c.runtime, () => this.scaleOutLocked(target));
+  }
+  async scaleOutLocked(target) {
     if (!Number.isInteger(target) || target < this.c.min || target > this.c.max)
       throw new Error("Unsafe target");
     await this.preflight();
@@ -190,6 +204,7 @@ class Docker {
     );
   }
   async removeBackend(id) {
+    assertRecoveryComplete(this.c);
     await this.inspect(id, "backend");
     console.log(
       `[P3] Verified ${this.c.project}: gracefully stop and remove drained backend ${id.slice(0, 12)}; no volumes removed.`,

@@ -1,0 +1,154 @@
+name: flashsale-p4-dr
+services:
+  db-primary:
+    container_name: flashsale-p4-dr-db-primary-1
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: p3_admin
+      POSTGRES_DB: flashsale_p3
+      POSTGRES_PASSWORD: ${P4_DR_DB_PASSWORD:-dr_admin_secret_pass_2026}
+      P3_REPLICATION_PASSWORD: ${P4_DR_REPLICATION_PASSWORD:-dr_replicator_secret_pass_2026}
+      P3_ID: 00000000-0000-4000-8000-000000000004
+    command:
+      [
+        postgres,
+        -c,
+        wal_level=replica,
+        -c,
+        max_wal_senders=5,
+        -c,
+        max_replication_slots=5,
+        -c,
+        wal_keep_size=256MB,
+        -c,
+        max_connections=100,
+        -c,
+        shared_buffers=128MB,
+        -c,
+        log_min_duration_statement=1000,
+      ]
+    volumes:
+      - p4-dr-primary:/var/lib/postgresql/data
+      - ./docker/p3/init.sh:/docker-entrypoint-initdb.d/01-p3.sh:ro
+      - ./docker/p3/db-health.sh:/opt/p3/db-health.sh:ro
+      - ./db/schema.sql:/opt/p3/schema.sql:ro
+    healthcheck:
+      test: [CMD, sh, /opt/p3/db-health.sh, primary]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+      start_period: 20s
+    cpus: 2
+    mem_limit: 1g
+    networks: [p4-dr]
+    labels:
+      com.docker.compose.project: flashsale-p4-dr
+      com.docker.compose.service: db-primary
+      flashsale.environment: p4-dr
+  db-replica:
+    container_name: flashsale-p4-dr-db-replica-1
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: p3_admin
+      POSTGRES_DB: flashsale_p3
+      POSTGRES_PASSWORD: ${P4_DR_DB_PASSWORD:-dr_admin_secret_pass_2026}
+      P3_REPLICATION_PASSWORD: ${P4_DR_REPLICATION_PASSWORD:-dr_replicator_secret_pass_2026}
+      PGDATA: /var/lib/postgresql/data
+    entrypoint: [sh, /opt/p3/replica.sh]
+    volumes:
+      - p4-dr-replica:/var/lib/postgresql/data
+      - ./docker/p3/replica.sh:/opt/p3/replica.sh:ro
+      - ./docker/p3/db-health.sh:/opt/p3/db-health.sh:ro
+    depends_on:
+      db-primary: { condition: service_healthy }
+    healthcheck:
+      test: [CMD, sh, /opt/p3/db-health.sh, replica]
+      interval: 5s
+      timeout: 4s
+      retries: 18
+      start_period: 30s
+    cpus: 2
+    mem_limit: 1g
+    networks: [p4-dr]
+    labels:
+      com.docker.compose.project: flashsale-p4-dr
+      com.docker.compose.service: db-replica
+      flashsale.environment: p4-dr
+  backend:
+    image: flashsale-api:p3
+    environment:
+      PORT: 3000
+      DB_HOST: db-primary
+      DB_PORT: 5432
+      DB_REPLICA_HOST: db-replica
+      DB_REPLICA_PORT: 5432
+      DB_NAME: flashsale_p3
+      DB_USER: p3_admin
+      DB_PASSWORD: ${P4_DR_DB_PASSWORD:-dr_admin_secret_pass_2026}
+      DB_POOL_MAX: 10
+      P3_OBSERVABILITY: "1"
+      P3_ID: 00000000-0000-4000-8000-000000000004
+    depends_on:
+      db-primary: { condition: service_healthy }
+      db-replica: { condition: service_healthy }
+    healthcheck:
+      test: [CMD, node, scripts/p3/probe.js, /live]
+      interval: 5s
+      timeout: 4s
+      retries: 3
+      start_period: 10s
+    stop_grace_period: 100s
+    cpus: 1
+    mem_limit: 512m
+    networks: [p4-dr]
+    labels:
+      com.docker.compose.project: flashsale-p4-dr
+      com.docker.compose.service: backend
+      flashsale.environment: p4-dr
+  nginx:
+    container_name: flashsale-p4-dr-nginx-1
+    image: nginx:1.25-alpine
+    entrypoint: [sh, /opt/p3/start.sh]
+    volumes:
+      - ./nginx/p3/start.sh:/opt/p3/start.sh:ro
+      - ./nginx/p3/bootstrap.conf:/opt/p3/bootstrap.conf:ro
+    ports: ["127.0.0.1:${P4_DR_PORT:-8088}:80"]
+    healthcheck:
+      test: [CMD, wget, -qO-, "http://127.0.0.1/nginx-health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    cpus: 1
+    mem_limit: 256m
+    networks: [p4-dr]
+    labels:
+      com.docker.compose.project: flashsale-p4-dr
+      com.docker.compose.service: nginx
+      flashsale.environment: p4-dr
+networks:
+  p4-dr:
+    name: flashsale-p4-dr
+    labels:
+      com.docker.compose.project: flashsale-p4-dr
+      flashsale.environment: p4-dr
+volumes:
+  p4-dr-primary:
+    name: flashsale-p4-dr-primary
+    labels:
+      com.docker.compose.project: flashsale-p4-dr
+      flashsale.environment: p4-dr
+  p4-dr-replica:
+    name: flashsale-p4-dr-replica
+    labels:
+      com.docker.compose.project: flashsale-p4-dr
+      flashsale.environment: p4-dr
+  p4-dr-primary-recovery:
+    name: flashsale-p4-dr-primary-recovery
+    labels:
+      com.docker.compose.project: flashsale-p4-dr
+      flashsale.environment: p4-dr
+  p4-dr-replica-recovery:
+    name: flashsale-p4-dr-replica-recovery
+    labels:
+      com.docker.compose.project: flashsale-p4-dr
+      flashsale.environment: p4-dr

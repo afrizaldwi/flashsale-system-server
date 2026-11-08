@@ -1,0 +1,15 @@
+# P4 overlay of the existing P3 project. Names come from the verified recovery manifest.
+services:
+  db-primary:
+    volumes:
+      - p4-primary-recovery:/var/lib/postgresql/data
+  db-replica:
+    volumes:
+      - p4-replica-recovery:/var/lib/postgresql/data
+volumes:
+  p4-primary-recovery:
+    name: ${P4_PRIMARY_RECOVERY_VOLUME:?Verified P3 recovery manifest required}
+    labels: { flashsale.environment: p3, flashsale.recovery: p4 }
+  p4-replica-recovery:
+    name: ${P4_REPLICA_RECOVERY_VOLUME:?Verified P3 recovery manifest required}
+    labels: { flashsale.environment: p3, flashsale.recovery: p4 }

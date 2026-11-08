@@ -1,0 +1,184 @@
+{
+  "runId": "bfe0f3b7c035",
+  "result": "PASSED",
+  "success": true,
+  "requiresManualRecovery": false,
+  "evidence": {
+    "report": "D:\\Kuliah\\SEM 5\\Cloud Computing\\flashsale\\results\\p4\\bfe0f3b7c035\\report.json",
+    "ledger": "D:\\Kuliah\\SEM 5\\Cloud Computing\\flashsale\\results\\p4\\bfe0f3b7c035\\transactions.jsonl",
+    "k6Summary": "D:\\Kuliah\\SEM 5\\Cloud Computing\\flashsale\\results\\p4\\bfe0f3b7c035\\k6-summary.json"
+  },
+  "workload": {
+    "ok": true,
+    "exitCode": 0,
+    "unexpectedResponses": 0
+  },
+  "acknowledgements": {
+    "total": 319,
+    "missingBeforeReplay": 319,
+    "unresolved": 0
+  },
+  "ambiguous": {
+    "total": 100,
+    "unresolved": 0
+  },
+  "rto": {
+    "convention": "second consecutive health HTTP 503 (T0) to successful checkout and completed integrity audit (T1)",
+    "seconds": 110.826,
+    "targetSeconds": 300
+  },
+  "rpo": {
+    "convention": "failure injection minus newest acknowledged transaction lost from restored database",
+    "seconds": 0.005,
+    "targetSeconds": 60,
+    "snapshotAgeSeconds": 170
+  },
+  "checks": {
+    "workload": true,
+    "detection": true,
+    "primaryLifecycle": true,
+    "rto": true,
+    "rpo": true,
+    "backendSurvival": true,
+    "checkout": true,
+    "replicaReads": true,
+    "roles": true,
+    "integrity": true,
+    "acknowledged": true,
+    "ambiguous": true,
+    "auditCompleted": true
+  },
+  "failures": [],
+  "integrity": {
+    "time": "2026-11-08T19:05:31.935Z",
+    "checkpoint": "0/409FB60",
+    "consistent": true,
+    "primary": {
+      "database": "flashsale_p3",
+      "standby": false,
+      "products": [
+        {
+          "id": 1,
+          "name": "P3 Hot Product",
+          "initial_stock": 10000000,
+          "stock": 9898785,
+          "terpakai": 101215,
+          "terjual": 101215,
+          "selisih": 0
+        },
+        {
+          "id": 2,
+          "name": "P3 Secondary",
+          "initial_stock": 10000000,
+          "stock": 9999997,
+          "terpakai": 3,
+          "terjual": 3,
+          "selisih": 0
+        },
+        {
+          "id": 3,
+          "name": "P3 Third",
+          "initial_stock": 10000000,
+          "stock": 9999999,
+          "terpakai": 1,
+          "terjual": 1,
+          "selisih": 0
+        }
+      ],
+      "orders": 101219,
+      "qty": 101219,
+      "negative_stock": 0,
+      "duplicate_orders": 0,
+      "foreign_orders": 0
+    },
+    "replica": {
+      "database": "flashsale_p3",
+      "standby": true,
+      "products": [
+        {
+          "id": 1,
+          "name": "P3 Hot Product",
+          "initial_stock": 10000000,
+          "stock": 9898785,
+          "terpakai": 101215,
+          "terjual": 101215,
+          "selisih": 0
+        },
+        {
+          "id": 2,
+          "name": "P3 Secondary",
+          "initial_stock": 10000000,
+          "stock": 9999997,
+          "terpakai": 3,
+          "terjual": 3,
+          "selisih": 0
+        },
+        {
+          "id": 3,
+          "name": "P3 Third",
+          "initial_stock": 10000000,
+          "stock": 9999999,
+          "terpakai": 1,
+          "terjual": 1,
+          "selisih": 0
+        }
+      ],
+      "orders": 101219,
+      "qty": 101219,
+      "negative_stock": 0,
+      "duplicate_orders": 0,
+      "foreign_orders": 0
+    }
+  },
+  "timestamps": {
+    "failureInjectionRequestedAt": "2026-11-08T19:03:36.574Z",
+    "primaryUnavailableAt": "2026-11-08T19:03:36.912Z",
+    "failureDetectionAt": "2026-11-08T19:03:43.444Z",
+    "k6FirstErrorAt": "2026-11-08T19:03:36.665Z",
+    "restoreStartedAt": "2026-11-08T19:04:36.191Z",
+    "restoreCompletedAt": "2026-11-08T19:04:44.934Z",
+    "standbyRebuiltAt": "2026-11-08T19:04:53.218Z",
+    "firstSuccessfulRecoveryCheckoutAt": "2026-11-08T19:04:57.630Z",
+    "integrityAuditCompletedAt": "2026-11-08T19:05:34.270Z",
+    "controllerPausedAt": "2026-11-08T19:03:30.370Z",
+    "pretestBackupSelectedAt": "2026-11-08T19:03:32.427Z",
+    "trialRestoreCompletedAt": "2026-11-08T19:03:33.976Z",
+    "k6StartAt": "2026-11-08T19:03:33.977Z",
+    "k6HandshakeAt": "2026-11-08T19:03:34.102Z",
+    "failureInjectionAt": "2026-11-08T19:03:36.574Z",
+    "firstCheckoutErrorAt": "2026-11-08T19:03:36.665Z",
+    "primaryUnavailabilityVerifiedAt": "2026-11-08T19:03:37.156Z",
+    "t0": "2026-11-08T19:03:43.444Z",
+    "k6FinishedAt": "2026-11-08T19:04:34.603Z",
+    "writersStoppedAt": "2026-11-08T19:04:35.416Z",
+    "backupSelectedAt": "2026-11-08T19:04:35.734Z",
+    "health200At": "2026-11-08T19:04:57.587Z",
+    "t1": "2026-11-08T19:05:34.270Z"
+  },
+  "finalAcknowledgementAudit": {
+    "total": 319,
+    "unresolved": 0,
+    "allResolved": true
+  },
+  "vuParticipation": {
+    "ok": true,
+    "observedVUsCount": 100,
+    "concurrentActivityAtInjectionProven": false
+  },
+  "selectedBackup": {
+    "file": "flashsale_p3_20261108_190046.dump",
+    "sha256": "9ebc69f8c06897a17f8120c827f577c6ba9dc5933db5c8d7d4bb7309bc5d3d5d",
+    "database": "flashsale_p3",
+    "container": "flashsale-p3-db-primary-1",
+    "filePath": "D:\\Kuliah\\SEM 5\\Cloud Computing\\flashsale\\backups\\p3\\flashsale_p3_20261108_190046.dump",
+    "sizeBytes": 1222223,
+    "tocEntries": 28,
+    "format": "CUSTOM (-Fc)",
+    "startTime": "2026-11-08T19:00:46.892Z",
+    "snapshotStartedAt": "2026-11-08T19:00:46.892Z",
+    "snapshotConvention": "conservative lower bound before pg_dump; not an exported exact snapshot timestamp",
+    "endTime": "2026-11-08T19:00:47.898Z",
+    "durationMs": 1006,
+    "status": "VALIDATED"
+  }
+}

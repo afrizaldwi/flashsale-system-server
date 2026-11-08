@@ -11,6 +11,8 @@ backups/*
 .p3/
 .env.p3
 results/p3/
+results/p4/
 !.env.p3.example
 __pycache__/
 *.pyc
+tmp-*/

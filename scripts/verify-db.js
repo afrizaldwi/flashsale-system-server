@@ -1,7 +1,7 @@
 'use strict';
 // Verifikasi pada primary: exit code 0 hanya jika invarians benar dan server writable.
 require('dotenv').config();
-const { Client } = require('pg');
+const { ResilientClient: Client } = require('../src/db-client');
 const { perProduct } = require('../src/queries');
 const db = new Client({
   host: process.env.DB_HOST || '127.0.0.1',

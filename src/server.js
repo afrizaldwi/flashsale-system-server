@@ -7,6 +7,7 @@ const { primary, readProducts, replicaHealth } = require("./db");
 const { isDbUnavailable, sendError } = require("./errors");
 const { perProduct } = require("./queries");
 const db = require("./db");
+const { releaseClient } = require("./db-client");
 const { installLifecycle } = require("./lifecycle");
 const observation =
   process.env.P3_OBSERVABILITY === "1"
@@ -24,6 +25,16 @@ app.use(express.json({ limit: "32kb" }));
 app.use(express.static(path.join(__dirname, "..", "frontend")));
 
 const integer = (n) => Number.isSafeInteger(n) && n > 0;
+
+app.get("/live", (_req, res) => res.json({ live: true }));
+app.get("/ready", async (_req, res) => {
+  try {
+    const state = await db.readiness();
+    return res.status(state.ready ? 200 : 503).json(state);
+  } catch (_error) {
+    return res.status(503).json({ ready: false, error: "DB_UNAVAILABLE" });
+  }
+});
 
 // FR-1: daftar produk dari replica (dengan fallback primary).
 app.get("/products", async (_req, res) => {
@@ -145,7 +156,7 @@ app.post("/checkout", async (req, res) => {
         .json({ error: "BAD_REQUEST", message: "user_id tidak ditemukan." });
     return sendError(res, error);
   } finally {
-    if (client) client.release(releaseError);
+    if (client) releaseClient(client, releaseError);
   }
 });
 
@@ -255,7 +266,7 @@ app.get("/stats", async (_req, res) => {
     }
     return sendError(res, error);
   } finally {
-    if (client) client.release(releaseError);
+    if (client) releaseClient(client, releaseError);
   }
 });
 

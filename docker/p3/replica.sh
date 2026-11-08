@@ -13,7 +13,8 @@ if [ ! -s "$PGDATA/PG_VERSION" ]; then
     exit 1
   fi
   export PGPASSWORD="$P3_REPLICATION_PASSWORD"
-  pg_basebackup -h db-primary -U p3_replicator -D "$PGDATA" -Xs -R
+  # Avoid a spread checkpoint exceeding the replica bootstrap healthcheck window.
+  pg_basebackup -h db-primary -U p3_replicator -D "$PGDATA" -Xs -R --checkpoint=fast
   # libpq passfile avoids embedding the password in primary_conninfo.
   printf 'db-primary:5432:replication:p3_replicator:%s\n' "$P3_REPLICATION_PASSWORD" > "$PGDATA/p3.pgpass"
   chmod 600 "$PGDATA/p3.pgpass"

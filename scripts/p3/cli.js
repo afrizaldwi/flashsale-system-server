@@ -5,7 +5,9 @@ const { randomUUID, randomBytes } = require("node:crypto");
 const { ROOT, loadConfig } = require("./config");
 const { Docker } = require("./docker");
 const { readJson, writeJson, lock } = require("./util");
-async function main(args = process.argv.slice(2)) {
+const { withOperationLock } = require("./util");
+const { assertRecoveryComplete } = require("./recovery");
+async function main(args = process.argv.slice(2), options = {}) {
   const [command, option] = args;
   if (command === "init") {
     const target = path.join(ROOT, ".env.p3");
@@ -26,8 +28,8 @@ async function main(args = process.argv.slice(2)) {
     );
     return;
   }
-  const c = loadConfig(),
-    docker = new Docker(c);
+  const c = options.config || loadConfig(),
+    docker = options.docker || new Docker(c);
   const controlFile = path.join(c.runtime, "control.json");
   if (command === "config") {
     await docker.preflight();
@@ -37,6 +39,9 @@ async function main(args = process.argv.slice(2)) {
   if (command === "start") {
     const release = lock(path.join(c.runtime, "controller.lock"));
     try {
+      assertRecoveryComplete(c);
+      await withOperationLock(c.runtime, async () => {
+      assertRecoveryComplete(c);
       await docker.preflight();
       const existing = await docker.list("backend");
       const target = Math.max(c.min, existing.length);
@@ -63,12 +68,16 @@ async function main(args = process.argv.slice(2)) {
       console.log(
         `Ready: ${c.baseUrl}. Start npm run p3:controller in a separate terminal for automatic scaling.`,
       );
+      }, { wait: true });
     } finally {
       release();
     }
     return;
   }
   if (["pause", "resume", "fixed", "auto"].includes(command)) {
+    const releaseOperation = lock(path.join(c.runtime, "operation.lock"));
+    try {
+    if (command !== "pause") assertRecoveryComplete(c);
     const control = readJson(controlFile, { enabled: true });
     if (command === "pause" || command === "resume")
       control.paused = command === "pause";
@@ -78,6 +87,7 @@ async function main(args = process.argv.slice(2)) {
     }
     writeJson(controlFile, control);
     console.log(JSON.stringify(control));
+    } finally { releaseOperation(); }
     return;
   }
   if (command === "controller") {

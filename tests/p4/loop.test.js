@@ -15,6 +15,16 @@ const { acquireLock, releaseLock, startBackupLoop } = require("../../scripts/p4/
 
 const TEST_DIR = path.resolve(__dirname, "../../tmp-test-loop");
 const LOCK_FILE = path.join(TEST_DIR, ".backup.lock");
+test("p4 loop: same-PID replacement token cannot be released by the previous owner", () => {
+  setupTestDir();
+  try {
+    const lease = acquireLock(LOCK_FILE);
+    assert.equal(lease.acquired, true);
+    fs.writeFileSync(LOCK_FILE, JSON.stringify({ pid: process.pid, token: "replacement-owner" }));
+    assert.equal(releaseLock(LOCK_FILE), false);
+    assert.equal(JSON.parse(fs.readFileSync(LOCK_FILE, "utf8")).token, "replacement-owner");
+  } finally { cleanTestDir(); }
+});
 
 function setupTestDir() {
   if (fs.existsSync(TEST_DIR)) {

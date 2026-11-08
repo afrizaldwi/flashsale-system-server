@@ -618,6 +618,7 @@ function verifyBackendInstances(cfg, expectedDbHost = null, execFn = sh) {
       "  password: process.env.DB_PASSWORD,",
       "  connectionTimeoutMillis: 3000",
       "});",
+      "pool.on('error', e => console.error('[DB probe]', e.message));",
       "pool.query('SELECT current_database() AS db_name, pg_is_in_recovery() AS in_recovery, host(inet_server_addr()) AS server_ip')",
       "  .then(r => {",
       "    console.log(JSON.stringify({",

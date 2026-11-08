@@ -101,9 +101,11 @@ test("routing failure and rollback failure never reach backend termination", asy
   assert.deepEqual(f.actions, []);
   assert.ok(f.controller.state.pending);
 });
-test("graceful termination timeout leaves backend running without SIGKILL, stop or forced rm", async () => {
+test("graceful termination timeout leaves backend running without SIGKILL, stop or forced rm", async (t) => {
+  const runtime = fs.mkdtempSync(path.join(os.tmpdir(), "p3-termination-"));
+  t.after(() => fs.rmSync(runtime, { recursive: true, force: true }));
   const commands = [],
-    d = new Docker({ project: "flashsale-p3", terminationTimeout: 0 });
+    d = new Docker({ project: "flashsale-p3", terminationTimeout: 0, runtime });
   d.inspect = async () => ({ State: { Running: true } });
   d.command = async (args) => {
     commands.push(args);

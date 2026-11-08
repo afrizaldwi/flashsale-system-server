@@ -2,6 +2,9 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
+const { randomUUID } = require("node:crypto");
+const { AsyncLocalStorage } = require("node:async_hooks");
+const operationContext = new AsyncLocalStorage();
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function execute(
   command,
@@ -82,8 +85,9 @@ function append(file, value) {
 }
 function lock(file) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
+  const token = randomUUID();
   try {
-    fs.writeFileSync(file, JSON.stringify({ pid: process.pid }), {
+    fs.writeFileSync(file, JSON.stringify({ pid: process.pid, token }), {
       flag: "wx",
     });
   } catch (error) {
@@ -105,9 +109,12 @@ function lock(file) {
     fs.unlinkSync(file);
     return lock(file);
   }
-  return () => {
-    if (readJson(file, {})?.pid === process.pid) fs.unlinkSync(file);
+  const release = () => {
+    const owner = readJson(file, {});
+    if (owner?.pid === process.pid && owner.token === token) fs.unlinkSync(file);
   };
+  Object.assign(release, { path: path.resolve(file), token, pid: process.pid });
+  return release;
 }
 function csvRow(values) {
   return (
@@ -115,4 +122,28 @@ function csvRow(values) {
     "\n"
   );
 }
+async function waitForOperationLock(runtime, { timeoutMs = 90000, intervalMs = 50 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  while (true) {
+    try { return lock(path.join(runtime, "operation.lock")); }
+    catch (error) {
+      if (error.code !== "P3_LOCKED" || Date.now() >= deadline) throw error;
+      await sleep(intervalMs);
+    }
+  }
+}
+async function withOperationLock(runtime, action, { wait = false } = {}) {
+  const file = path.resolve(runtime, "operation.lock");
+  const inherited = operationContext.getStore();
+  if (inherited?.path === file) {
+    const owner = readJson(file, {});
+    if (owner.pid !== inherited.pid || owner.token !== inherited.token) throw new Error("P3 operation lock ownership changed");
+    return action();
+  }
+  const release = wait ? await waitForOperationLock(runtime) : lock(file);
+  try { return await operationContext.run(release, action); }
+  finally { release(); }
+}
 module.exports = { execute, sleep, writeJson, readJson, append, lock, csvRow };
+module.exports.waitForOperationLock = waitForOperationLock;
+module.exports.withOperationLock = withOperationLock;

@@ -1,4 +1,5 @@
 "use strict";
+const { restoreOptions, restoreInspect } = require("./helpers/restore-runtime");
 /**
  * tests/p4/restore.test.js
  * Unit Test Suite untuk Modul Restore Automation P4 (flashsale_p3)
@@ -31,9 +32,7 @@ const {
 const TEST_RESTORE_DIR = path.resolve(__dirname, "../../tmp-test-restore");
 
 function setupTestBackup() {
-  if (fs.existsSync(TEST_RESTORE_DIR)) {
-    fs.rmSync(TEST_RESTORE_DIR, { recursive: true, force: true });
-  }
+  cleanTestDir();
   fs.mkdirSync(TEST_RESTORE_DIR, { recursive: true });
 
   const dumpPath = path.join(TEST_RESTORE_DIR, "flashsale_p3_20261108_120000.dump");
@@ -48,23 +47,17 @@ function setupTestBackup() {
 
 function cleanTestDir() {
   if (fs.existsSync(TEST_RESTORE_DIR)) {
-    fs.rmSync(TEST_RESTORE_DIR, { recursive: true, force: true });
+    try {
+      const files = fs.readdirSync(TEST_RESTORE_DIR);
+      for (const f of files) {
+        try { fs.unlinkSync(path.join(TEST_RESTORE_DIR, f)); } catch {}
+      }
+      fs.rmSync(TEST_RESTORE_DIR, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    } catch {}
   }
 }
 
-const VALID_INSPECT_JSON = JSON.stringify([
-  {
-    Id: "123456abcdef",
-    State: { Status: "running", Running: true },
-    Config: {
-      Labels: {
-        "com.docker.compose.project": "flashsale-p3",
-        "com.docker.compose.service": "db-primary",
-        "flashsale.environment": "p3",
-      },
-    },
-  },
-]);
+const VALID_INSPECT_JSON = restoreInspect();
 
 test("p4 restore: default adalah dry-run dan tidak memodifikasi database", async () => {
   const { dumpPath, sha256 } = setupTestBackup();
@@ -202,7 +195,7 @@ test("p4 restore: menolak restore jika query pemutusan koneksi aktif gagal", asy
     };
 
     await assert.rejects(
-      () => performRestore({ backupDir: TEST_RESTORE_DIR, file: dumpPath, execute: true }, mockExecTermFail),
+      () => performRestore({ backupDir: TEST_RESTORE_DIR, file: dumpPath, ...restoreOptions(TEST_RESTORE_DIR), execute: true }, mockExecTermFail),
       /Gagal memutus koneksi aktif database/,
     );
   } finally {
@@ -230,7 +223,7 @@ test("p4 restore: menolak restore jika masih terdapat koneksi aktif pasca-termin
     };
 
     await assert.rejects(
-      () => performRestore({ backupDir: TEST_RESTORE_DIR, file: dumpPath, execute: true }, mockExecStillConnected),
+      () => performRestore({ backupDir: TEST_RESTORE_DIR, file: dumpPath, ...restoreOptions(TEST_RESTORE_DIR), execute: true }, mockExecStillConnected),
       /Masih terdapat 2 koneksi aktif/,
     );
     assert.equal(termAttempted, true);
@@ -259,7 +252,7 @@ test("p4 restore: menolak status SUCCESS jika query verifikasi pasca-restore gag
     };
 
     await assert.rejects(
-      () => performRestore({ backupDir: TEST_RESTORE_DIR, file: dumpPath, execute: true }, mockExecVerifyFail),
+      () => performRestore({ backupDir: TEST_RESTORE_DIR, file: dumpPath, ...restoreOptions(TEST_RESTORE_DIR), execute: true }, mockExecVerifyFail),
       /Verifikasi pasca-restore gagal: query verifikasi database error/,
     );
 
@@ -287,7 +280,7 @@ test("p4 restore: menolak status SUCCESS jika query verifikasi mengembalikan res
     };
 
     await assert.rejects(
-      () => performRestore({ backupDir: TEST_RESTORE_DIR, file: dumpPath, execute: true }, mockExecEmpty),
+      () => performRestore({ backupDir: TEST_RESTORE_DIR, file: dumpPath, ...restoreOptions(TEST_RESTORE_DIR), execute: true }, mockExecEmpty),
       /respons query verifikasi kosong/,
     );
 
@@ -304,7 +297,7 @@ test("p4 restore: menolak status SUCCESS jika query verifikasi mengembalikan res
     };
 
     await assert.rejects(
-      () => performRestore({ backupDir: TEST_RESTORE_DIR, file: dumpPath, execute: true }, mockExecMalformed),
+      () => performRestore({ backupDir: TEST_RESTORE_DIR, file: dumpPath, ...restoreOptions(TEST_RESTORE_DIR), execute: true }, mockExecMalformed),
       /nilai products_count tidak valid/,
     );
   } finally {
@@ -343,7 +336,7 @@ test("p4 restore: eksekusi dengan --execute menjalankan pg_restore dengan opsi l
       {
         backupDir: TEST_RESTORE_DIR,
         file: dumpPath,
-        execute: true, // EKSEKUSI AKTUAL
+        ...restoreOptions(TEST_RESTORE_DIR), execute: true, // EKSEKUSI AKTUAL
       },
       mockExec,
     );
@@ -570,18 +563,9 @@ test("p4 restore: backup terbaru dengan arsip korup (TOC gagal) dilewati dan bac
     const hashCorrupt = crypto.createHash("sha256").update(Buffer.from("CORRUPT_TOC_CONTENT")).digest("hex");
     fs.writeFileSync(`${dumpCorruptTOC}.sha256`, `${hashCorrupt}  flashsale_p3_20261108_150000.dump\n`, "utf8");
 
-    let cpCorrupt = false;
-    const mockExec = (cmd) => {
-      if (cmd.includes("docker cp") && cmd.includes("150000")) {
-        cpCorrupt = true;
-        return "";
-      }
-      if (cmd.includes("docker cp") && cmd.includes("120000")) {
-        cpCorrupt = false;
-        return "";
-      }
+    const mockExec = (cmd, options) => {
       if (cmd.includes("pg_restore --list")) {
-        if (cpCorrupt) {
+        if (options.input.toString() === "CORRUPT_TOC_CONTENT") {
           const err = new Error("corrupt archive header");
           err.stderr = "pg_restore: error: did not find magic header";
           throw err;
@@ -661,7 +645,9 @@ test("p4 restore: seluruh file backup lama terlindungi dan tidak dihapus selama 
 
 function setupTestDir() {
   if (fs.existsSync(TEST_RESTORE_DIR)) {
-    fs.rmSync(TEST_RESTORE_DIR, { recursive: true, force: true });
+    try {
+      fs.rmSync(TEST_RESTORE_DIR, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    } catch {}
   }
   fs.mkdirSync(TEST_RESTORE_DIR, { recursive: true });
 }

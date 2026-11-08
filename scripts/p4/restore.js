@@ -127,9 +127,52 @@ function findLatestBackup(
 }
 
 async function performRestore(options = {}, execFn = execSync) {
-  const isExecute = Boolean(
-    options.execute || process.argv.includes("--execute"),
-  );
+  // API execution is explicit; flags of an importing process are irrelevant.
+  if (options.execute !== true) return performRestoreUnlocked({ ...options, execute: false }, execFn);
+  const { acquireRestoreSession } = require("./locks");
+  const session = acquireRestoreSession(options.backupDir || P3_CONFIG.backupDir, {
+    file: options.file ? path.basename(options.file) : null,
+  });
+  try {
+    const { context } = require("./p3-dr");
+    const { recoveryState } = require("../p3/recovery");
+    const { withOperationLock, readJson } = require("../p3/util");
+    const { c } = context(options);
+    return await withOperationLock(c.runtime, async () => {
+      const state = recoveryState(c);
+      if (!state || state.phase !== "recovering") throw new Error("Restore requires a recovering manifest and fresh recovery volume; original volumes are protected");
+      if (readJson(path.join(c.runtime, "control.json"), {}).paused !== true) throw new Error("Pause P3 controller before restore");
+      for (const [key, expected] of Object.entries({ project: "flashsale-p3", service: "db-primary", environment: "p3", dbName: "flashsale_p3", dbUser: "p3_admin" })) {
+        if (options[key] != null && options[key] !== expected) throw new Error(`Official P3 restore required: invalid ${key}`);
+      }
+      if (!/^[a-f0-9]{64}$/.test(options.confirmPrimary || "") || options.confirmVolume !== state.primaryVolume)
+        throw new Error("Explicit confirmation required: full recovery primary ID and exact fresh volume");
+      const requested = options.container || P3_CONFIG.container;
+      if (!/^[a-zA-Z0-9_.-]+$/.test(requested)) throw new Error("Invalid target container");
+      const assertTarget = (container) => {
+        const check = sh(`docker inspect ${container}`, execFn);
+        if (!check.ok) throw new Error(`Restore target inspection failed: ${check.stderr}`);
+        const data = JSON.parse(check.stdout);
+        if (!Array.isArray(data) || data.length !== 1) throw new Error("Expected exactly one restore target");
+        const target = data[0], labels = target.Config?.Labels || {};
+        const mounts = (target.Mounts || []).filter(m => m.Destination === "/var/lib/postgresql/data");
+        if (target.Id !== options.confirmPrimary || target.State?.Running !== true ||
+            labels["com.docker.compose.project"] !== "flashsale-p3" || labels["com.docker.compose.service"] !== "db-primary" ||
+            labels["flashsale.environment"] !== "p3" || !target.NetworkSettings?.Networks?.["flashsale-p3_p3"] ||
+            mounts.length !== 1 || mounts[0].Type !== "volume" || mounts[0].Name !== state.primaryVolume ||
+            [state.originalPrimary.volume, state.originalReplica?.volume].includes(mounts[0].Name))
+          throw new Error("Restore target ID, identity or fresh recovery volume mismatch");
+        return target.Id;
+      };
+      const id = assertTarget(requested);
+      return performRestoreUnlocked({ ...options, container: id, assertTarget: () => assertTarget(id) }, execFn);
+    });
+  }
+  finally { session.release(); }
+}
+
+async function performRestoreUnlocked(options = {}, execFn = execSync) {
+  const isExecute = options.execute === true;
   const cfg = {
     execute: isExecute,
     container: options.container || P3_CONFIG.container,
@@ -143,14 +186,6 @@ async function performRestore(options = {}, execFn = execSync) {
       environment: options.environment || P3_CONFIG.environment,
     },
   };
-
-  // Parse CLI argumen jika dipanggil dari terminal
-  if (!cfg.specifiedFile) {
-    const fileArgIdx = process.argv.indexOf("--file");
-    if (fileArgIdx !== -1 && process.argv[fileArgIdx + 1]) {
-      cfg.specifiedFile = process.argv[fileArgIdx + 1];
-    }
-  }
 
   // 1. Tentukan file backup yang akan digunakan (spesifik atau pencarian otomatis terbaru yang valid)
   let dumpPath = cfg.specifiedFile;
@@ -282,6 +317,7 @@ async function performRestore(options = {}, execFn = execSync) {
   const startTime = new Date();
   const containerRestoreDump = `/tmp/restore_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.dump`;
 
+  options.assertTarget(); // Revalidate immediately before the first destructive operation.
   try {
     // 7. Putus koneksi backend aktif agar proses DROP/CREATE table tidak terkunci (lock conflict)
     const termRes = terminateActiveConnections(
@@ -410,7 +446,11 @@ async function performRestore(options = {}, execFn = execSync) {
 }
 
 if (require.main === module) {
-  performRestore()
+  (async () => {
+    const value = (name) => { const i = process.argv.indexOf(name); return i < 0 ? undefined : process.argv[i + 1]; };
+    return performRestore({ execute: process.argv.includes("--execute"), file: value("--file"),
+      confirmPrimary: value("--confirm-primary"), confirmVolume: value("--confirm-volume") });
+  })()
     .then((res) => {
       if (res.dryRun) {
         console.log(
@@ -452,8 +492,8 @@ if (require.main === module) {
         console.log(
           "Untuk mengeksekusi restore aktual, jalankan dengan flag --execute:",
         );
-        console.log("  node scripts/p4/restore.js --execute");
-        console.log("  bash scripts/p4/restore.sh --execute");
+        console.log("  npm run p4:dr  # inspect the P3 fresh-volume recovery plan first");
+        console.log("In-place restore onto the original primary volume is prohibited by DRP v1.1.");
         console.log(
           "===========================================================================",
         );

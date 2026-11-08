@@ -4,10 +4,10 @@
  * PostgreSQL Periodic Backup Loop untuk Stack P3 (flashsale_p3)
  *
  * Standar Keandalan DRP Kelompok 1:
- * - Interval default 30 detik (RPO target <= 1 menit).
+ * - Interval default 60 detik (target DRP, bukan jaminan RPO).
  * - Pembuatan lock file secara atomik eksklusif (flag: "wx" / O_CREAT | O_EXCL).
  * - Mencegah eksekusi backup paralel / race condition antar-proses.
- * - Lock hanya boleh dirilis oleh proses yang memilikinya (validasi PID).
+ * - Lock hanya boleh dirilis oleh pemilik lease dengan PID dan token yang cocok.
  * - Perhitungan sisa interval dinamis berdasarkan durasi eksekusi backup.
  * - Penanganan penghentian proses secara anggun (SIGINT / SIGTERM).
  * - Kegagalan backup tidak pernah menghapus backup yang sudah ada.
@@ -22,55 +22,31 @@ const { performBackup } = require("./backup");
  * Memperoleh lock file secara atomik menggunakan exclusive creation flag "wx".
  * Jika file sudah ada, melempar EEXIST dan mengembalikan { acquired: false }.
  */
+const { acquireOwnedLock } = require("./locks");
+const ownedLoopLocks = new Map();
 function acquireLock(lockFile, myPid = process.pid) {
-  const payload = JSON.stringify({
-    pid: myPid,
-    createdAt: new Date().toISOString(),
-  });
+  const key = `${path.resolve(lockFile)}:${myPid}`;
   try {
-    fs.writeFileSync(lockFile, payload, { flag: "wx" });
-    return { acquired: true, ownerPid: myPid, error: null };
-  } catch (err) {
-    if (err.code === "EEXIST") {
-      let existingPid = null;
-      try {
-        const raw = fs.readFileSync(lockFile, "utf8");
-        const parsed = JSON.parse(raw);
-        existingPid = parsed.pid;
-      } catch {}
-      return {
-        acquired: false,
-        ownerPid: existingPid,
-        error: `Lock sedang dikuasai oleh proses PID ${existingPid || "unknown"}`,
-      };
-    }
-    return { acquired: false, ownerPid: null, error: err.message };
+    const lease = acquireOwnedLock(lockFile, { operation: "backup-loop" }, myPid);
+    ownedLoopLocks.set(key, lease);
+    return { acquired: true, ownerPid: myPid, token: lease.token, error: null };
+  } catch (error) {
+    let existingPid = null;
+    try { existingPid = JSON.parse(fs.readFileSync(lockFile, "utf8")).pid; } catch {}
+    return { acquired: false, ownerPid: existingPid,
+      error: `Lock sedang dikuasai oleh proses PID ${existingPid || "unknown"}: ${error.message}` };
   }
 }
-
-/**
- * Merilis lock file HANYA jika PID pemilik cocok dengan PID pemanggil.
- * Mencegah proses lain menghapus lock yang bukan miliknya.
- */
 function releaseLock(lockFile, myPid = process.pid) {
-  try {
-    if (!fs.existsSync(lockFile)) return true;
-    const raw = fs.readFileSync(lockFile, "utf8");
-    const parsed = JSON.parse(raw);
-    if (parsed.pid === myPid) {
-      fs.unlinkSync(lockFile);
-      return true;
-    }
-    // Lock dimiliki oleh proses lain; jangan hapus!
-    return false;
-  } catch (_err) {
-    return false;
-  }
+  const key = `${path.resolve(lockFile)}:${myPid}`;
+  const lease = ownedLoopLocks.get(key);
+  if (!lease) return false;
+  ownedLoopLocks.delete(key);
+  return lease.release();
 }
-
 async function startBackupLoop(options = {}) {
   const intervalSeconds = Number(
-    options.intervalSeconds || process.env.BACKUP_INTERVAL_SECONDS || 30,
+    options.intervalSeconds || process.env.BACKUP_INTERVAL_SECONDS || 60,
   );
   const backupDir = options.backupDir || P3_CONFIG.backupDir;
   const maxIterations = options.maxIterations || Infinity;

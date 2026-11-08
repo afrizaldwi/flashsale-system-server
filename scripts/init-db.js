@@ -3,7 +3,7 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
-const { Client } = require('pg');
+const { ResilientClient: Client } = require('../src/db-client');
 
 const base = {
   host: process.env.DB_HOST || '127.0.0.1',

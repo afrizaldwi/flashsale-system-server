@@ -34,8 +34,10 @@ test("Docker operations reject P2 labels, wrong service and wrong network", () =
   container.NetworkSettings.Networks = {};
   assert.throws(() => d.assertContainer(container), /outside/);
 });
-test("scale-out command targets backend only and disables dependency recreation", async () => {
-  const d = new Docker(c);
+test("scale-out command targets backend only and disables dependency recreation", async (t) => {
+  const runtime = fs.mkdtempSync(path.join(os.tmpdir(), "p3-scaleout-isolation-"));
+  t.after(() => fs.rmSync(runtime, { recursive: true, force: true }));
+  const d = new Docker({ ...c, runtime });
   d.preflight = async () => {};
   d.list = async () => [];
   let args;
