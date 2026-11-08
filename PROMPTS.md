@@ -90,3 +90,65 @@ Alat: Google Antigravity (Gemini 3.8 Flash).
    - Pembaruan `scripts/p3/report.js` agar secara otomatis mengekstraksi `first_infrastructure_error` ke dalam `analysis.json`.
    - Dukungan idempotency result `200 DUPLICATE` diperbarui pada `tests/load/workload.js` sebagai valid business response.
    - Pembaruan dokumen revisi laporan `docs/revisi/Pertemuan_3/Laporan_Pertemuan_3_Revisi.docx` dengan data empiris first-error timeline.
+
+
+---
+
+## Pertemuan 4 — Backup & Restore Automation (8 November 2026)
+Alat: Google Antigravity (Gemini 3.8 Flash).
+
+> # IMPLEMENTASI PERTEMUAN 4 — BACKUP & RESTORE AUTOMATION
+> Peran: Cloud Engineer dan DevOps Engineer untuk proyek praktikum Cloud Computing Kelompok 1 — Flash Sale E-Commerce.
+> Tujuan: Mengimplementasikan mekanisme backup database otomatis dan restore database untuk mendukung Disaster Recovery Plan (DRP).
+> Target awal: RTO <= 5 menit, RPO <= 1 menit, Backup berkala setiap 30 detik.
+> Komponen yang dibuat:
+> 1. backup.sh & backup.js (format custom -Fc, snapshot konsisten, validasi pg_restore --list, SHA-256, atomic temp file, proteksi backup sebelumnya).
+> 2. backup-loop.sh & backup-loop.js (interval 30s, serial execution lock file, graceful shutdown).
+> 3. restore.sh & restore.js (default dry-run, flag eksplisit --execute, validasi checksum SHA-256, opsi pg_restore --clean --if-exists --no-owner --no-acl --exit-on-error, isolasi stack flashsale_p3, pemutusan koneksi backend aktif).
+> 4. Unit tests di tests/p4/ (11 test case baru, verifikasi fail-closed, checksum mismatch, role check, dan dry-run safety).
+> 5. Dokumentasi lengkap docs/PERTEMUAN_4.md.
+
+**Hasil dan Bukti Eksekusi:**
+- Modul backup dan restore diimplementasikan di `scripts/p4/` dengan dukungan lintas shell (PowerShell via Node/npm dan Git Bash via Shell Script).
+- Backup runtime riil terverifikasi: `flashsale_p3_20261108_100556.dump` (11.10 KB, 28 entitas TOC tervalidasi, durasi 1.2s, SHA-256 valid).
+- Restore runtime dry-run terverifikasi: simulasi sukses tanpa modifikasi data aktual pada database.
+- Backup loop terverifikasi: interval 30 detik, lock file `.backup.lock` mencegah proses konkuren, log dicatat di `backup-loop.log`.
+- Test suite keseluruhan meningkat dari 80 menjadi **91 test PASS (100%)** tanpa kegagalan.
+- Database baseline tetap terjaga konsisten (`consistent: true`, 0 negative stock, 0 duplicate orders).
+
+---
+
+## Final Review & Hardening Pertemuan 4 — Backup & Restore Automation (8 November 2026)
+Alat: Google Antigravity (Gemini 3.8 Flash).
+
+> # FINAL REVISI PERTEMUAN 4 — BACKUP & RESTORE AUTOMATION
+> Fokus pekerjaan:
+> 1. Kepemilikan atomic lock pada backup loop (diperoleh sebelum while-loop, dipertahankan selama loop & jeda interval, dilepas hanya di finally oleh PID pemilik, graceful shutdown tanpa memutus paksa backup in-flight).
+> 2. Validasi ketat connection count & terminasi (strict integer parsing Number.isSafeInteger() non-negatif, penolakan "0invalid", query terminasi hanya menghitung koneksi yang bernilai true).
+> 3. Pemilihan backup terbaru yang valid (skip dump tanpa .sha256, checksum mismatch, atau TOC corrupt, beralih ke backup valid sebelumnya tanpa menghapus file lama).
+> 4. Sinkronisasi dokumentasi dan pengujian regresi menyeluruh (98 -> 109 PASS).
+
+**Hasil dan Bukti Eksekusi Aktual:**
+1. **Peningkatan Unit Test Suite (`npm test`):**
+   - Total test suite bertambah menjadi **109 test PASS (100%)**:
+     - 20 test suite P1 (failover & rekonsiliasi)
+     - 60 test suite P2/P3 (resilience, autoscaling, dynamic routing, concurrency)
+     - 29 test suite P4 (5 backup, 5 loop, 19 restore/connection/validation)
+2. **Atomic Lock Loop Terverifikasi:**
+   - Lock file `.backup.lock` dibuat menggunakan flag `wx` (`O_CREAT | O_EXCL`) sebelum loop dimulai.
+   - Pengujian membuktikan proses kedua ditolak (`EEXIST`) saat proses pertama sedang tidur menunggu interval berikutnya (mencegah backup paralel).
+   - Pelepasan lock dijamin oleh blok `finally` dan hanya diizinkan untuk PID pemilik.
+   - Pengujian 1-iterasi loop runtime membuktikan siklus backup tunggal berhasil tanpa kebocoran lock file. Catatan: Pengujian 1-iterasi ini hanya memvalidasi satu siklus backup, bukan kestabilan eksekusi berulang dalam jangka waktu panjang.
+3. **Validasi Strict Connection Count & Terminasi:**
+   - Fungsi `parseStrictNonNegativeInt` menolak format malformed (`0invalid`, `NaN`, bilangan negatif, string kosong).
+   - Query pemutusan koneksi menggunakan `WHERE terminated = true` sehingga hanya mencatat jumlah koneksi yang benar-benar berhasil diputus.
+   - Query error atau anomali tidak lagi di-fallback menjadi `0`, melainkan menghentikan proses secara fail-closed.
+4. **Pemilihan Backup Otomatis Terverifikasi:**
+   - Skrip `restore.js` secara otomatis memeriksa kandidat dump dari yang paling baru.
+   - Kandidat tanpa `.sha256`, checksum mismatch, atau arsip korup otomatis dilewati ke backup sebelumnya yang valid.
+   - Seluruh file backup lama tetap terlindungi dan tidak dihapus selama proses pencarian.
+5. **Verifikasi Runtime & Integritas Data:**
+   - Runtime backup: `flashsale_p3_20261108_105337.dump` (11.10 KB, 28 entitas TOC valid, SHA-256 valid).
+   - Runtime dry-run restore: rencana pemulihan tervalidasi sukses tanpa perubahan data pada database aktif.
+   - Integritas data live di `http://127.0.0.1:8080/stats` tetap konsisten (`consistent: true`, 97 total orders, 0 mismatch).
+   - Catatan DRP: Target RTO <= 5 menit dan RPO <= 1 menit merupakan target desain arsitektur dan belum dibuktikan melalui Disaster Recovery Test aktual (penghapusan container/volume secara destruktif). Restore aktual wajib dijalankan secara manual dengan flag eksplisit `--execute`.

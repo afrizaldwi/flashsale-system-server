@@ -19,7 +19,10 @@
     "p3:status": "node scripts/p3/cli.js status",
     "p3:verify": "node scripts/p3/cli.js verify",
     "p3:run": "node scripts/p3/run.js",
-    "p3:report": "node scripts/p3/report.js"
+    "p3:report": "node scripts/p3/report.js",
+    "p4:backup": "node scripts/p4/backup.js",
+    "p4:backup-loop": "node scripts/p4/backup-loop.js",
+    "p4:restore": "node scripts/p4/restore.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

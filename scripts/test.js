@@ -21,10 +21,19 @@ const p3Files = fs.existsSync(p3Dir)
       .map((n) => path.join(p3Dir, n))
   : [];
 
+const p4Dir = path.join(root, "tests/p4");
+const p4Files = fs.existsSync(p4Dir)
+  ? fs
+      .readdirSync(p4Dir)
+      .filter((n) => n.endsWith(".test.js"))
+      .map((n) => path.join(p4Dir, n))
+  : [];
+
 const files = [
   path.join(root, "tests/core.test.js"),
   ...p1Files,
   ...p3Files,
+  ...p4Files,
 ];
 
 const result = spawnSync(process.execPath, ["--test", ...files], {
