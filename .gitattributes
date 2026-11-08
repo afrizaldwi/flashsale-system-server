@@ -1,3 +1,4 @@
 # Container entrypoints must remain executable by /bin/sh after a Windows checkout.
 docker/p3/*.sh text eol=lf
 nginx/p3/*.sh text eol=lf
+*.json text diff eol=lf

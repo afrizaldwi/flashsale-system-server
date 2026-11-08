@@ -1,6 +1,7 @@
 "use strict";
 require("dotenv").config();
 const path = require("path");
+const os = require("node:os");
 const express = require("express");
 const { primary, readProducts, replicaHealth } = require("./db");
 const { isDbUnavailable, sendError } = require("./errors");
@@ -14,6 +15,10 @@ const observation =
 
 const app = express();
 app.disable("x-powered-by");
+app.use((_req, res, next) => {
+  res.setHeader("X-Backend-Id", process.env.HOSTNAME || os.hostname());
+  next();
+});
 if (observation) app.use(observation.middleware);
 app.use(express.json({ limit: "32kb" }));
 app.use(express.static(path.join(__dirname, "..", "frontend")));
@@ -174,11 +179,23 @@ app.get("/health", async (_req, res) => {
   const state = {
     status: "ok",
     db: "up",
+    database: null,
+    in_recovery: null,
+    server_ip: null,
+    db_server_ip: null,
+    db_host: process.env.DB_HOST || "unknown",
     failover_mode: "manual",
     time: new Date().toISOString(),
   };
   try {
-    const r = await primary.query("SELECT pg_is_in_recovery() AS in_recovery");
+    const r = await primary.query(
+      "SELECT current_database() AS database, pg_is_in_recovery() AS in_recovery, host(inet_server_addr()) AS server_ip"
+    );
+    state.database = r.rows[0].database;
+    state.in_recovery = r.rows[0].in_recovery;
+    const dbIp = (r.rows[0].server_ip || "").replace(/\/.*$/, "");
+    state.server_ip = dbIp;
+    state.db_server_ip = dbIp;
     if (r.rows[0].in_recovery) {
       state.status = "degraded";
       state.db = "read_only";
@@ -186,6 +203,10 @@ app.get("/health", async (_req, res) => {
   } catch (_error) {
     state.status = "degraded";
     state.db = "down";
+    state.database = null;
+    state.in_recovery = null;
+    state.server_ip = null;
+    state.db_server_ip = null;
   }
   Object.assign(state, await replicaHealth());
   return res.status(state.db === "up" ? 200 : 503).json(state);

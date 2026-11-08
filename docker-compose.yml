@@ -56,6 +56,8 @@ services:
       - "5432:5432"
     networks:
       - flashsale-net
+    labels:
+      flashsale.environment: p2
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d flashsale"]
       interval: 10s
@@ -87,6 +89,8 @@ services:
       - "5433:5432"
     networks:
       - flashsale-net
+    labels:
+      flashsale.environment: p2
     depends_on:
       db-primary:
         condition: service_healthy
@@ -108,16 +112,18 @@ services:
     env_file: .env.docker
     environment:
       PORT: 3000
-      DB_HOST: db-primary
-      DB_PORT: 5432
+      DB_HOST: ${DB_HOST:-db-primary}
+      DB_PORT: ${DB_PORT:-5432}
       DB_NAME: ${POSTGRES_DB}
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_POOL_MAX: 20
-      DB_REPLICA_HOST: db-replica
-      DB_REPLICA_PORT: 5432
+      DB_REPLICA_HOST: ${DB_REPLICA_HOST-db-replica}
+      DB_REPLICA_PORT: ${DB_REPLICA_PORT:-5432}
     networks:
       - flashsale-net
+    labels:
+      flashsale.environment: p2
     depends_on:
       db-primary:
         condition: service_healthy
@@ -141,16 +147,18 @@ services:
     env_file: .env.docker
     environment:
       PORT: 3000
-      DB_HOST: db-primary
-      DB_PORT: 5432
+      DB_HOST: ${DB_HOST:-db-primary}
+      DB_PORT: ${DB_PORT:-5432}
       DB_NAME: ${POSTGRES_DB}
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_POOL_MAX: 20
-      DB_REPLICA_HOST: db-replica
-      DB_REPLICA_PORT: 5432
+      DB_REPLICA_HOST: ${DB_REPLICA_HOST-db-replica}
+      DB_REPLICA_PORT: ${DB_REPLICA_PORT:-5432}
     networks:
       - flashsale-net
+    labels:
+      flashsale.environment: p2
     depends_on:
       db-primary:
         condition: service_healthy
@@ -175,6 +183,8 @@ services:
       - "80:80"
     networks:
       - flashsale-net
+    labels:
+      flashsale.environment: p2
     depends_on:
       backend-1:
         condition: service_healthy

@@ -84,15 +84,15 @@ def main():
     print("\n[FASE 1: Kondisi Baseline Normal]")
     h1 = http_get("/health")
     print(f"1. /health: HTTP {h1.get('status')} -> db: {h1.get('body',{}).get('db')}, replica: {h1.get('body',{}).get('replica')}, lag: {h1.get('body',{}).get('replica_lag_seconds')}s")
-    
+
     p1 = http_get("/products")
     src1 = p1.get("headers", {}).get("x-read-from", "none")
     print(f"2. GET /products: HTTP {p1.get('status')} -> Header X-Read-From: '{src1}'")
-    
+
     pri_role = docker_sql(PRIMARY_CONTAINER, "SELECT pg_is_in_recovery();")
     rep_role = docker_sql(REPLICA_CONTAINER, "SELECT pg_is_in_recovery();")
     print(f"3. Role PostgreSQL: Primary in_recovery={pri_role} (f=writer), Replica in_recovery={rep_role} (t=standby)")
-    
+
     rep_stat = docker_sql(PRIMARY_CONTAINER, "SELECT application_name || ' | state:' || state || ' | sync:' || sync_state FROM pg_stat_replication;")
     print(f"4. Streaming Replication State di Primary: {rep_stat}")
 
@@ -104,7 +104,7 @@ def main():
     print("\n[FASE 2: Transaksi Tulis (POST /checkout) & Verifikasi Replikasi]")
     c1 = http_post_checkout(product_id=2, qty=1, user_id=1)
     print(f"1. POST /checkout (Product 2, Qty 1): HTTP {c1.get('status')} -> Result: {c1.get('body',{}).get('result')}, Order ID: {c1.get('body',{}).get('order',{}).get('id')}")
-    
+
     # Check duplicate idempotency
     c1_dup = http_post_checkout(product_id=2, qty=1, user_id=1, key=c1["key"])
     print(f"2. POST /checkout (Duplicate Key): HTTP {c1_dup.get('status')} -> Result: {c1_dup.get('body',{}).get('result')}")
@@ -138,7 +138,7 @@ def main():
     print("\n[FASE 4: Simulasi Replica Pulih -> Pengujian Otomatis Kembali ke Replica]")
     print(f"Menjalankan kembali container replica: docker start {REPLICA_CONTAINER}...")
     run_command(f"docker start {REPLICA_CONTAINER}")
-    
+
     # Wait for replica to be ready
     print("Menunggu replica hot standby siap...")
     for _ in range(15):

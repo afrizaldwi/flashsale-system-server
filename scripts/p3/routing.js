@@ -21,7 +21,7 @@ function render(backends, generation) {
 pid /var/run/nginx.pid;
 events { worker_connections 4096; }
 http {
-  log_format p3 escape=json '{"time":"$time_iso8601","status":$status,"request_time":$request_time,"upstream":"$upstream_addr","upstream_time":"$upstream_response_time","backend":"$upstream_http_x_backend_id"}';
+  log_format p3 escape=json '{"time":"$time_iso8601","remote_addr":"$remote_addr","request":"$request","status":$status,"request_time":$request_time,"upstream":"$upstream_addr","upstream_status":"$upstream_status","upstream_time":"$upstream_response_time","backend":"$upstream_http_x_backend_id"}';
   access_log /var/log/nginx/access.log p3;
   error_log /var/log/nginx/error.log warn;
   upstream api {

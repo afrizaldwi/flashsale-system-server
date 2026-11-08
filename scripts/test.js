@@ -4,13 +4,29 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const root = path.resolve(__dirname, "..");
+
+const p1Dir = path.join(root, "tests/p1");
+const p1Files = fs.existsSync(p1Dir)
+  ? fs
+      .readdirSync(p1Dir)
+      .filter((n) => n.endsWith(".test.js"))
+      .map((n) => path.join(p1Dir, n))
+  : [];
+
+const p3Dir = path.join(root, "tests/p3");
+const p3Files = fs.existsSync(p3Dir)
+  ? fs
+      .readdirSync(p3Dir)
+      .filter((n) => n.endsWith(".test.js"))
+      .map((n) => path.join(p3Dir, n))
+  : [];
+
 const files = [
   path.join(root, "tests/core.test.js"),
-  ...fs
-    .readdirSync(path.join(root, "tests/p3"))
-    .filter((n) => n.endsWith(".test.js"))
-    .map((n) => path.join(root, "tests/p3", n)),
+  ...p1Files,
+  ...p3Files,
 ];
+
 const result = spawnSync(process.execPath, ["--test", ...files], {
   stdio: "inherit",
   windowsHide: true,

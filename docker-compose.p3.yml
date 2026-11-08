@@ -71,10 +71,10 @@ services:
     image: flashsale-api:p3
     environment:
       PORT: 3000
-      DB_HOST: db-primary
-      DB_PORT: 5432
-      DB_REPLICA_HOST: db-replica
-      DB_REPLICA_PORT: 5432
+      DB_HOST: ${P3_DB_HOST:-db-primary}
+      DB_PORT: ${P3_DB_PORT:-5432}
+      DB_REPLICA_HOST: ${P3_DB_REPLICA_HOST-db-replica}
+      DB_REPLICA_PORT: ${P3_DB_REPLICA_PORT:-5432}
       DB_NAME: flashsale_p3
       DB_USER: p3_admin
       DB_PASSWORD: ${P3_DB_PASSWORD:?Run npm run p3:init}
