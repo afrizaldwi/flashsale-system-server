@@ -1,0 +1,16 @@
+========================================================
+  Laporan Stress Test Aset Statis -- SEBELUM CDN (Node.js /products)
+========================================================
+  Skenario  : before_cdn
+  VUs       : 100
+  Durasi    : 60s
+  Tanggal   : 2026-11-13T15:00 WIB
+--------------------------------------------------------
+  Throughput       : 210.6 req/s
+  Avg Response     : 270.0 ms
+  p(95) Response   : 838.1 ms
+  Error Rate       : 0.00 %
+  Total Requests   : 12810
+========================================================
+Keterangan: Endpoint /products (Node.js -> DB replica)
+Threshold p(95) < 500ms CROSSED (expected - tanpa CDN)

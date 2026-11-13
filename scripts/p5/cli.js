@@ -98,3 +98,4 @@ Pertemuan 5 — CLI
   node scripts/p5/cli.js stress-compare Jalankan keduanya berurutan
 `);
 }
+

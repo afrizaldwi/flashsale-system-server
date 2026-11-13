@@ -32,10 +32,12 @@ const PRODUCTS = [1, 2, 3, 4, 5];
 // URL berdasarkan skenario
 function assetUrl(productId) {
   if (SCENARIO === "before_cdn") {
-    // Backend Node.js melayani file dari frontend/images/
-    return `${BACKEND_BASE}/images/products/product-${productId}.svg`;
+    // Mode SEBELUM CDN: backend Node.js melayani API (GET /products)
+    // Gambar tidak ada di backend — ini justru membuktikan pentingnya CDN.
+    // Gunakan endpoint /products sebagai proxy beban "read" dari backend.
+    return `${BACKEND_BASE}/products`;
   } else {
-    // CDN Edge (Nginx cache → MinIO)
+    // CDN Edge (Nginx cache) — gambar langsung dari CDN
     return `${CDN_BASE}/assets/products/product-${productId}.svg`;
   }
 }
@@ -132,3 +134,4 @@ ${SCENARIO === "after_cdn" ? `  Cache Hit Rate   : ${hitRate} %
     [`results/p5-${SCENARIO}-summary.txt`]: report,
   };
 }
+

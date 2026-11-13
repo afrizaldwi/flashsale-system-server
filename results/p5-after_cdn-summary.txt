@@ -1,0 +1,16 @@
+
+========================================================
+  Laporan Stress Test Aset Statis — SETELAH CDN (Nginx+MinIO)
+========================================================
+  Skenario  : after_cdn
+  VUs       : 100
+  Durasi    : 60s
+--------------------------------------------------------
+  Throughput       : 478.1 req/s
+  Avg Response     : 6.9 ms
+  p(95) Response   : 16.3 ms
+  Error Rate       : 0.00 %
+  Cache Hit Rate   : 100.0 %
+  Cache Hits       : 28810
+  Cache Misses     : 0
+========================================================

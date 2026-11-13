@@ -19,3 +19,4 @@ services:
       CDN_URL: "http://127.0.0.1:8081"
 
 # Semua service lainnya di-inherit dari docker-compose.p3.yml dan docker-compose.p5.yml
+
