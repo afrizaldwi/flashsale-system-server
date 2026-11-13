@@ -1,0 +1,21 @@
+# docker-compose.p5-full.yml
+# Compose file FINAL yang menggabungkan P3 stack + P5 CDN.
+# Ini adalah "docker-compose.yml final" sebagaimana diminta deliverable Pertemuan 5.
+#
+# Cara pakai:
+#   npm run p3:init           (sekali)
+#   docker compose -f docker-compose.p3.yml -f docker-compose.p5.yml -f docker-compose.p5-full.yml \
+#     --env-file .env.p3 -p flashsale-p5 up -d
+#
+# Atau gunakan alias:
+#   npm run p5:start-full
+
+name: flashsale-p5-full
+
+# Override backend service agar tahu CDN URL
+services:
+  backend:
+    environment:
+      CDN_URL: "http://127.0.0.1:8081"
+
+# Semua service lainnya di-inherit dari docker-compose.p3.yml dan docker-compose.p5.yml

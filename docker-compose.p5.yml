@@ -1,0 +1,97 @@
+name: flashsale-p5
+
+# ============================================================
+#  Pertemuan 5 – File Management & CDN berbasis Docker
+#  Extends P3 stack dengan MinIO (object storage) + Nginx CDN
+# ============================================================
+#
+#  Cara pakai:
+#    npm run p5:start          → mulai semua service (p3 + p5 add-ons)
+#    npm run p5:upload-assets  → seed gambar sample ke MinIO
+#    npm run p5:stop           → hentikan hanya service p5
+#
+#  Port:
+#    8080  – Nginx LB (API + frontend, sama seperti P3)
+#    8081  – CDN Edge (aset statis dari MinIO, cached)
+#    9000  – MinIO S3 API
+#    9001  – MinIO Console (browser)
+# ============================================================
+
+services:
+
+  # ── Object Storage (MinIO) ──────────────────────────────────
+  minio:
+    image: minio/minio:RELEASE.2024-11-07T00-52-20Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER:     minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    volumes:
+      - minio-data:/data
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    healthcheck:
+      test: [CMD, curl, -f, "http://127.0.0.1:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks: [p3, p5]
+    labels:
+      flashsale.environment: p5
+      flashsale.role: object-storage
+
+  # ── CDN Edge Node (Nginx + proxy_cache) ────────────────────
+  cdn-edge:
+    image: nginx:1.25-alpine
+    volumes:
+      - ./nginx/p5/cdn.conf:/etc/nginx/conf.d/default.conf:ro
+      - cdn-cache:/var/cache/nginx/cdn
+    ports:
+      - "127.0.0.1:8081:80"
+    depends_on:
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, wget, -qO-, "http://127.0.0.1/cdn-health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks: [p5]
+    labels:
+      flashsale.environment: p5
+      flashsale.role: cdn-edge
+
+  # ── MinIO setup (bucket + public policy) ───────────────────
+  minio-setup:
+    image: minio/mc:RELEASE.2024-11-21T17-21-54Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      sh -c "
+        mc alias set local http://minio:9000 minioadmin minioadmin123 &&
+        mc mb --ignore-existing local/flashsale &&
+        mc anonymous set download local/flashsale &&
+        echo 'MinIO bucket ready'
+      "
+    networks: [p5]
+    labels:
+      flashsale.environment: p5
+      flashsale.role: setup
+
+networks:
+  p3:
+    external: true
+    name: flashsale-p3_p3
+  p5:
+    labels: { flashsale.environment: p5 }
+
+volumes:
+  minio-data:
+    labels: { flashsale.environment: p5 }
+  cdn-cache:
+    labels: { flashsale.environment: p5 }
+

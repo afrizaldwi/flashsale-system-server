@@ -22,7 +22,32 @@ app.use((_req, res, next) => {
 });
 if (observation) app.use(observation.middleware);
 app.use(express.json({ limit: "32kb" }));
-app.use(express.static(path.join(__dirname, "..", "frontend")));
+
+// P5: Jika CDN_URL diset, aset gambar dilayani dari CDN Edge (MinIO + Nginx cache).
+// Jika tidak, fallback ke express.static untuk kompatibilitas mundur (P1-P4).
+const CDN_URL = process.env.CDN_URL || null;
+if (!CDN_URL) {
+  // Mode lama (P1–P4): Node.js melayani file statis secara langsung.
+  app.use(express.static(path.join(__dirname, "..", "frontend")));
+} else {
+  // Mode P5: Hanya index.html + script/style dari Node.js;
+  // gambar/aset diarahkan ke CDN Edge.
+  app.use(express.static(path.join(__dirname, "..", "frontend"), {
+    index: ["index.html"],
+    // Jangan layani subfolder images — ditangani CDN
+    setHeaders: (res) => res.setHeader("X-Served-By", "app-server"),
+  }));
+  console.log(`[P5] CDN mode aktif: aset statis dari ${CDN_URL}`);
+}
+
+// FR-P5: endpoint untuk mendapatkan CDN base URL (digunakan frontend)
+app.get("/cdn-config", (_req, res) =>
+  res.json({
+    cdn_url: CDN_URL || null,
+    asset_base: CDN_URL ? `${CDN_URL}/assets` : "/images",
+    mode: CDN_URL ? "cdn" : "local",
+  })
+);
 
 const integer = (n) => Number.isSafeInteger(n) && n > 0;
 

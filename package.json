@@ -23,7 +23,14 @@
     "p4:backup": "node scripts/p4/backup.js",
     "p4:backup-loop": "node scripts/p4/backup-loop.js",
     "p4:restore": "node scripts/p4/restore.js",
-    "p4:dr": "node scripts/p4/orchestrate-dr.js"
+    "p4:dr": "node scripts/p4/orchestrate-dr.js",
+    "p5:start": "node scripts/p5/cli.js start",
+    "p5:stop": "node scripts/p5/cli.js stop",
+    "p5:status": "node scripts/p5/cli.js status",
+    "p5:upload-assets": "node scripts/p5/cli.js upload",
+    "p5:stress-before": "node scripts/p5/cli.js stress-before",
+    "p5:stress-after": "node scripts/p5/cli.js stress-after",
+    "p5:stress-compare": "node scripts/p5/cli.js stress-compare"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
