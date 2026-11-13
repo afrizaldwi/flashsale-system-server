@@ -37,8 +37,8 @@ services:
       timeout: 4s
       retries: 12
       start_period: 20s
-    cpus: 2
-    mem_limit: 1g
+    cpus: 1        # write traffic lebih sedikit — INSERT/UPDATE saat checkout saja
+    mem_limit: 768m
     networks: [p3]
     labels: { flashsale.environment: p3 }
   db-replica:
@@ -62,8 +62,8 @@ services:
       timeout: 4s
       retries: 18
       start_period: 30s
-    cpus: 2
-    mem_limit: 1g
+    cpus: 3        # read traffic dominan — GET /products, cek stok, list order
+    mem_limit: 1536m
     networks: [p3]
     labels: { flashsale.environment: p3 }
   backend:
