@@ -73,6 +73,41 @@ app.get("/products", async (_req, res) => {
   }
 });
 
+// DEMO: reset stok produk untuk keperluan pengujian race condition
+app.post("/admin/reset-stock", async (req, res) => {
+  const { product_id, stock } = req.body || {};
+  if (!product_id || stock === undefined || stock < 0) {
+    return res.status(400).json({ error: "product_id dan stock (>=0) wajib diisi." });
+  }
+  try {
+    const result = await primary.query(
+      "UPDATE products SET stock = $1 WHERE id = $2 RETURNING id, name, stock",
+      [stock, product_id]
+    );
+    if (result.rowCount === 0)
+      return res.status(404).json({ error: "Produk tidak ditemukan." });
+    return res.json({ message: "Stok direset", ...result.rows[0] });
+  } catch (error) {
+    return sendError(res, error);
+  }
+});
+
+// DEMO: hitung total order per produk untuk verifikasi anti-overselling
+app.get("/admin/orders", async (req, res) => {
+  const { product_id } = req.query;
+  try {
+    const q = product_id
+      ? await primary.query(
+          "SELECT COUNT(*) AS count FROM orders WHERE product_id = $1 AND status = 'PAID'",
+          [product_id]
+        )
+      : await primary.query("SELECT COUNT(*) AS count FROM orders WHERE status = 'PAID'");
+    return res.json({ count: parseInt(q.rows[0].count) });
+  } catch (error) {
+    return sendError(res, error);
+  }
+});
+
 // FR-2, FR-3, FR-4: checkout atomik + idempotent; hanya database primary yang menerima write.
 app.post("/checkout", async (req, res) => {
   const key = req.get("Idempotency-Key");
